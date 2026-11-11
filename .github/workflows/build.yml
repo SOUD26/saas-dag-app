@@ -81,7 +81,7 @@ jobs:
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         run: |
           npx --yes wrangler@3 pages project create saas-dag --production-branch main || true
-          npx --yes wrangler@3 pages deploy site --project-name saas-dag --branch main 2>&1 | tee ci-logs/05-deploy.txt
+          npx --yes wrangler@3 pages deploy site --project-name saas-dag --branch main 2>&1 | sed -E 's/cfut_[A-Za-z0-9]+/[OCULTO]/g; s/Bearer [^ "]+/Bearer [OCULTO]/g' | tee ci-logs/05-deploy.txt
 
       - name: Guardar carpetas android/web generadas
         if: success()
