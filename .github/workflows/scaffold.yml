@@ -1,0 +1,30 @@
+name: scaffold-android-web
+# Genera una sola vez las carpetas android/ y web/ con la versión actual de Flutter.
+on:
+  workflow_dispatch:
+  push:
+    branches: [app-login]
+    paths: ['.github/workflows/scaffold.yml']
+permissions:
+  contents: write
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generar android/ y web/ si faltan
+        run: |
+          flutter --version
+          if [ -d android ] && [ -d web ]; then echo "ya existen"; exit 0; fi
+          flutter create /tmp/scaffold --org com.saasdag --project-name saas_dag_app --platforms=android,web
+          cp -rn /tmp/scaffold/android . 
+          cp -rn /tmp/scaffold/web .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android web
+          git commit -m "Carpetas android y web generadas por flutter create"
+          git push
