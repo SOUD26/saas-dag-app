@@ -4,6 +4,7 @@ import '../models/profile.dart';
 import '../models/role_info.dart';
 import '../supabase.dart';
 import '../theme.dart';
+import 'admin/admin_home.dart';
 
 /// Pantalla vacía por rol. Sirve para comprobar que cada login cae donde toca.
 /// Si [previewRole] viene lleno es una vista previa (solo el súper admin).
@@ -255,7 +256,9 @@ class _PreviewPicker extends StatelessWidget {
                   ),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => RoleScreen(profile: profile, previewRole: r),
+                      builder: (_) => r == AppRole.companyAdmin
+                          ? AdminHome(profile: profile, preview: true)
+                          : RoleScreen(profile: profile, previewRole: r),
                     ),
                   ),
                 ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/profile.dart';
+import '../screens/admin/admin_home.dart';
 import '../screens/login_screen.dart';
 import '../screens/no_access_screen.dart';
 import '../screens/role_screen.dart';
@@ -91,6 +92,7 @@ class _AuthGateState extends State<AuthGate> {
             message: 'Tu acceso fue desactivado. Habla con tu administrador.',
           );
         }
+        if (profile.role == AppRole.companyAdmin) return AdminHome(profile: profile);
         return RoleScreen(profile: profile);
       },
     );
