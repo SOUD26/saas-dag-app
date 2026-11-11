@@ -11,7 +11,7 @@ const cors = {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const ROLES = ["company_admin", "supervisor", "guard", "client"];
+const ROLES = ["company_admin", "supervisor", "guard", "client", "resident"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME = /^[a-z0-9._-]{3,30}$/;
@@ -70,26 +70,31 @@ async function createUser(admin: any, caller: string, b: Record<string, unknown>
   if (!fullName) throw new HttpError(400, "Nombre requerido");
   if (password && password.length < 8) throw new HttpError(400, "La contraseña debe tener al menos 8 caracteres");
 
-  let email: string;
+  let email = "";
   let username: string | null = null;
   if (role === "guard") {
-    // Los guardas entran con usuario + contraseña. Auth exige un correo, así que se
-    // construye uno interno que nunca recibe mensajes: usuario@<empresa>.guardas.invalid
     username = String(b.username ?? "").trim().toLowerCase();
     if (!USERNAME.test(username)) throw new HttpError(400, "Usuario inválido (3 a 30 caracteres: letras, números, . _ -)");
     if (!password) throw new HttpError(400, "La contraseña es requerida para guardas");
-    email = `${username}@${company}.guardas.invalid`;
   } else {
     email = String(b.email ?? "").trim().toLowerCase();
     if (!EMAIL.test(email)) throw new HttpError(400, "Correo inválido");
   }
-  const profileEmail = role === "guard" ? null : email;
 
   // 1) ¿Está autorizado quien llama? (antes de crear nada)
   const auth = await admin.rpc("authorize_user_creation", {
     p_caller: caller, p_role: role, p_company: company, p_client: client,
   });
   if (auth.error) throw dbError(auth.error);
+
+  // Los guardas entran con usuario + contraseña. Auth exige un correo, así que se construye
+  // uno interno que nunca recibe mensajes: usuario@<código-de-empresa>.guardas.invalid
+  if (role === "guard") {
+    const co = await admin.from("companies").select("code").eq("id", company).single();
+    if (co.error || !co.data?.code) throw new HttpError(400, "Empresa inválida");
+    email = `${username}@${String(co.data.code).toLowerCase()}.guardas.invalid`;
+  }
+  const profileEmail = role === "guard" ? null : email;
 
   // 2) Crear el usuario en Auth (correo confirmado: entra con Google si el correo coincide, o con contraseña)
   const created = await admin.auth.admin.createUser({

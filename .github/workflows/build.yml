@@ -1,0 +1,110 @@
+name: build-app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [app-login, main]
+    paths-ignore:
+      - 'supabase/**'
+      - 'README.md'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Llave de firma estable (para que el APK se actualice sin desinstalar)
+        run: |
+          mkdir -p ~/.android
+          cp ci/debug.keystore ~/.android/debug.keystore
+
+      - name: Carpetas android y web
+        run: |
+          mkdir -p ci-logs
+          flutter --version 2>&1 | tee ci-logs/00-flutter-version.txt
+          if [ ! -d android ] || [ ! -d web ]; then
+            flutter create /tmp/scaffold --org com.saasdag --project-name saas_dag_app --platforms=android,web
+            cp -rn /tmp/scaffold/android . || true
+            cp -rn /tmp/scaffold/web . || true
+            NEW_PLATFORMS=1
+          fi
+          python3 ci/patch_android.py
+
+      - name: Dependencias
+        run: flutter pub get 2>&1 | tee ci-logs/01-pub-get.txt
+
+      - name: Analizar
+        run: flutter analyze --no-fatal-infos 2>&1 | tee ci-logs/02-analyze.txt
+
+      - name: Compilar web
+        run: flutter build web --release 2>&1 | tee ci-logs/03-build-web.txt
+
+      - name: Compilar APK
+        run: flutter build apk --release --split-per-abi 2>&1 | tee ci-logs/04-build-apk.txt
+
+      - name: Armar sitio (web + APK)
+        run: |
+          mkdir -p site
+          cp -r build/web/. site/
+          mkdir -p site/descargas
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk site/descargas/saas-dag.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk site/descargas/saas-dag-32bits.apk
+          ls -la site/descargas
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saas-dag-apk
+          path: build/app/outputs/flutter-apk/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saas-dag-web
+          path: build/web
+
+      - name: Publicar en Cloudflare Pages
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
+        run: |
+          npx --yes wrangler@3 pages project create saas-dag --production-branch main || true
+          npx --yes wrangler@3 pages deploy site --project-name saas-dag --branch main 2>&1 | tee ci-logs/05-deploy.txt
+
+      - name: Guardar carpetas android/web generadas
+        if: success()
+        run: |
+          if [ -n "$(git status --porcelain android web)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add android web
+            git commit -m "Carpetas android y web generadas por flutter create"
+            git push || true
+          fi
+
+      - name: Publicar registro en la rama ci-logs
+        if: always()
+        run: |
+          mkdir -p /tmp/logs
+          cp -r ci-logs/. /tmp/logs/ 2>/dev/null || true
+          echo "commit: ${GITHUB_SHA}  rama: ${GITHUB_REF_NAME}  resultado: ${{ job.status }}" > /tmp/logs/resumen.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan ci-logs-tmp
+          git rm -rf --cached --quiet . || true
+          mkdir -p logs && cp -r /tmp/logs/. logs/
+          git add -f logs
+          git commit -m "logs del build" --quiet
+          git push -f origin HEAD:ci-logs

@@ -24,7 +24,7 @@ Stack: Flutter (Android + Web), Supabase (base de datos y autenticación), Cloud
 
 ## Entrada de los guardas
 Auth exige un correo, así que cada guarda tiene uno interno que nunca recibe mensajes:
-`<usuario>@<id-de-la-empresa>.guardas.invalid`. El teléfono vinculado al sitio conoce el id de la empresa; el guarda solo escribe su usuario y contraseña.
+`<usuario>@<codigo-de-empresa>.guardas.invalid` (el código son 6 caracteres, columna `companies.code`). Por ahora el guarda escribe código de empresa, usuario y contraseña; cuando exista el emparejamiento teléfono↔sitio, el código vendrá del teléfono.
 
 ## Llamar a la función de servidor
 `POST https://<proyecto>.supabase.co/functions/v1/admin-users` con el token de quien llama en `Authorization: Bearer ...`.
