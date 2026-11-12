@@ -1,0 +1,13 @@
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mWarning: Your working directory is a git repo and has uncommitted changes[0m
+
+  To silence this warning, pass in --commit-dirty=true
+
+
+Uploading... (38/42)
+Uploading... (39/42)
+Uploading... (40/42)
+Uploading... (42/42)
+✨ Success! Uploaded 4 files (38 already uploaded) (5.87 sec)
+
+🌎 Deploying...
+✨ Deployment complete! Take a peek over at https://bf7cce16.saas-dag.pages.dev
