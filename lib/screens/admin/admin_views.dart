@@ -5,7 +5,7 @@ import 'admin_data.dart';
 import 'admin_sheets.dart';
 import 'admin_ui.dart';
 
-/// Fila de bandera, reutilizada en el panel y en la lista de banderas.
+/// Fila de alerta, reutilizada en el panel y en la lista de alertas.
 class FlagTile extends StatelessWidget {
   const FlagTile({super.key, required this.d, required this.v, required this.reload});
   final AdminData d;
@@ -65,7 +65,7 @@ class FlagTile extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Banderas ─────────────────────────
+// ───────────────────────── Alertas ─────────────────────────
 
 class FlagsView extends StatelessWidget {
   const FlagsView({
@@ -108,7 +108,7 @@ class FlagsView extends StatelessWidget {
     return AdminPage(
       onRefresh: reload,
       children: [
-        const SectionHead('Banderas · últimos 7 días'),
+        const SectionHead('Alertas · últimos 7 días'),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -127,7 +127,7 @@ class FlagsView extends StatelessWidget {
             filter == 'pending' ? Icons.verified_rounded : Icons.flag_outlined,
             filter == 'pending'
                 ? 'Nada pendiente. Todo revisado.'
-                : 'No hay banderas con este filtro.',
+                : 'No hay alertas con este filtro.',
           )
         else
           for (final v in list) FlagTile(d: d, v: v, reload: reload),
@@ -240,7 +240,7 @@ class GuardsView extends StatelessWidget {
                         children: [
                           Text(g.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                           Text(
-                            '${(d.assign[g.id] ?? const <String>{}).length} sitios · ${d.flagCount(g.id)} banderas en 7 días',
+                            '${(d.assign[g.id] ?? const <String>{}).length} sitios · ${d.flagCount(g.id)} alertas en 7 días',
                             style: const TextStyle(color: AppColors.muted, fontSize: 13),
                           ),
                         ],

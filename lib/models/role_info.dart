@@ -52,7 +52,7 @@ RoleInfo infoFor(AppRole role) {
         modules: [
           'Mapa de sitios',
           'Guardas en turno',
-          'Banderas rojas',
+          'Alertas de verificación',
           'Rondas',
           'Alertas',
         ],

@@ -59,7 +59,7 @@ class _AdminHomeState extends State<AdminHome> {
 
     final dests = <(IconData, String)>[
       (Icons.dashboard_rounded, 'Panel'),
-      (Icons.flag_rounded, 'Banderas'),
+      (Icons.flag_rounded, 'Alertas'),
       (Icons.place_rounded, 'Sitios'),
       (Icons.badge_rounded, 'Guardas'),
       (Icons.business_rounded, 'Clientes'),
@@ -219,7 +219,7 @@ class _Dashboard extends StatelessWidget {
 
     final kpis = [
       Kpi(
-        label: 'Banderas por revisar',
+        label: 'Alertas por revisar',
         value: '${pending.length}',
         icon: Icons.flag_rounded,
         color: pending.isEmpty ? kOk : AppColors.danger,
@@ -257,7 +257,7 @@ class _Dashboard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Toca cualquier tarjeta, bandera o sitio para ir directo al detalle.',
+          'Toca cualquier tarjeta, alerta o sitio para ir directo al detalle.',
           style: TextStyle(color: AppColors.muted),
         ),
         const SizedBox(height: 16),

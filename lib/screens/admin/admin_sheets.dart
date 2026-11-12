@@ -88,7 +88,7 @@ class _FlagBodyState extends State<_FlagBody> {
             const Icon(Icons.flag_rounded, color: AppColors.danger),
             const SizedBox(width: 8),
             const Expanded(
-              child: Text('Bandera',
+              child: Text('Alerta',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
             ),
             Pill(Outcome.label(v.outcome), outcomeColor(v.outcome)),
@@ -103,7 +103,7 @@ class _FlagBodyState extends State<_FlagBody> {
         if (v.score != null) _row('Coincidencia', v.score!.toStringAsFixed(2)),
         if (repeat) ...[
           const SizedBox(height: 8),
-          Pill('Reincidente · ${d.flagCount(v.guardId!)} banderas en 7 días', AppColors.danger),
+          Pill('Reincidente · ${d.flagCount(v.guardId!)} alertas en 7 días', AppColors.danger),
         ],
         const SizedBox(height: 18),
         if (v.reviewed) ...[
@@ -191,11 +191,11 @@ Future<void> showSiteSheet(
           guards.isEmpty ? 'Ninguno asignado' : guards.map((g) => g.name).join(', '),
         ),
         const SizedBox(height: 14),
-        Text('Banderas (7 días): ${flags.length}',
+        Text('Alertas (7 días): ${flags.length}',
             style: const TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         if (flags.isEmpty)
-          const Text('Sin banderas.', style: TextStyle(color: AppColors.muted))
+          const Text('Sin alertas.', style: TextStyle(color: AppColors.muted))
         else
           for (final v in flags.take(6))
             ListTile(
@@ -241,7 +241,7 @@ Future<void> showGuardSheet(
         const SizedBox(height: 12),
         _row('Sitios', sites.isEmpty ? 'Sin sitios asignados' : sites.join(', ')),
         _row('Verificaciones', '${mine.length} en 7 días'),
-        _row('Banderas', '${d.flagCount(g.id)} en 7 días'),
+        _row('Alertas', '${d.flagCount(g.id)} en 7 días'),
         const SizedBox(height: 14),
         const Text('Últimos movimientos', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
@@ -498,7 +498,7 @@ class _NewSiteDialogState extends State<_NewSiteDialog> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: 'Perímetro (metros)',
-                  helperText: 'Distancia máxima del centro para marcar sin bandera.',
+                  helperText: 'Distancia máxima del centro para marcar sin alerta.',
                 ),
               ),
               if (_error != null) ...[
