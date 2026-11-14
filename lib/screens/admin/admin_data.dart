@@ -118,6 +118,48 @@ class AShift {
   final String? notes;
 }
 
+/// Persona de la empresa (cualquier rol menos súper admin) para el panel de accesos.
+class AStaff {
+  const AStaff({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.active,
+    this.login,
+    this.clientId,
+  });
+  final String id;
+  final String name;
+  final String role; // company_admin, supervisor, guard, client, resident
+  final bool active;
+  final String? login; // correo o usuario
+  final String? clientId;
+}
+
+/// Permiso del catálogo (tabla `permissions`).
+class APerm {
+  const APerm({
+    required this.key,
+    required this.label,
+    required this.module,
+    required this.description,
+    required this.grantableTo,
+  });
+  final String key;
+  final String label;
+  final String module;
+  final String description;
+  final List<String> grantableTo;
+}
+
+const roleLabels = <String, String>{
+  'company_admin': 'Administrador',
+  'supervisor': 'Supervisor',
+  'guard': 'Guarda',
+  'client': 'Cliente',
+  'resident': 'Usuario',
+};
+
 class AVerif {
   const AVerif({
     required this.id,
@@ -158,7 +200,24 @@ class AdminData {
     this.companies = const [],
     this.isSuper = false,
     this.shifts = const [],
+    this.staff = const [],
+    this.perms = const [],
+    this.userPerms = const {},
+    this.myId = '',
   });
+
+  /// Panel de accesos: personas, catálogo de permisos y permisos otorgados.
+  final List<AStaff> staff;
+  final List<APerm> perms;
+  final Map<String, Set<String>> userPerms; // userId -> keys
+  final String myId;
+
+  AStaff? staffById(String id) {
+    for (final x in staff) {
+      if (x.id == id) return x;
+    }
+    return null;
+  }
 
   /// Turnos de los últimos 30 días y los próximos 30 (con su resultado).
   final List<AShift> shifts;
@@ -282,6 +341,17 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
       .select('id, full_name, active, company_id')
       .eq('role', 'guard')
       .order('full_name');
+  final staffRowsAll = await supabase
+      .from('profiles')
+      .select('id, full_name, role, active, username, email, company_id, client_id')
+      .neq('role', 'super_admin')
+      .order('full_name');
+  final permRows = await supabase
+      .from('permissions')
+      .select('key, description, label, module, grantable_to')
+      .order('key');
+  final upRowsAll =
+      await supabase.from('user_permissions').select('user_id, permission, company_id');
   final clientRows = clientRowsAll.where(mine).toList();
   final siteRows = siteRowsAll.where(mine).toList();
   final guardRows = guardRowsAll.where(mine).toList();
@@ -317,6 +387,39 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
 
   return AdminData(
     companyId: cid,
+    myId: uid,
+    staff: [
+      for (final r in staffRowsAll.where(mine))
+        AStaff(
+          id: r['id'] as String,
+          name: (r['full_name'] as String?) ?? 'Sin nombre',
+          role: r['role'] as String,
+          active: (r['active'] as bool?) ?? true,
+          login: (r['email'] as String?) ?? (r['username'] as String?),
+          clientId: r['client_id'] as String?,
+        ),
+    ],
+    perms: [
+      for (final r in permRows)
+        APerm(
+          key: r['key'] as String,
+          label: (r['label'] as String?) ?? (r['key'] as String),
+          module: (r['module'] as String?) ??
+              (r['key'] as String).split('.').first,
+          description: (r['description'] as String?) ?? '',
+          grantableTo: [
+            for (final x in (r['grantable_to'] as List<dynamic>? ?? const []))
+              x.toString(),
+          ],
+        ),
+    ],
+    userPerms: () {
+      final m = <String, Set<String>>{};
+      for (final r in upRowsAll.where(mine)) {
+        (m[r['user_id'] as String] ??= <String>{}).add(r['permission'] as String);
+      }
+      return m;
+    }(),
     companies: companies,
     isSuper: isSuper,
     clients: [
@@ -479,5 +582,40 @@ Future<void> updateShift(String id, Map<String, dynamic> values) async {
     }).eq('id', id);
   } on PostgrestException catch (e) {
     throw _shiftError(e);
+  }
+}
+
+Future<void> setUserActive(String userId, bool active) async {
+  await supabase.from('profiles').update({'active': active}).eq('id', userId);
+}
+
+Future<void> grantPermission(String userId, String key, String companyId) =>
+    supabase.from('user_permissions').insert({
+      'user_id': userId,
+      'permission': key,
+      'company_id': companyId,
+      'granted_by': supabase.auth.currentUser!.id,
+    });
+
+Future<void> revokePermission(String userId, String key) => supabase
+    .from('user_permissions')
+    .delete()
+    .eq('user_id', userId)
+    .eq('permission', key);
+
+/// Cambia la contraseña de otra persona con la función de servidor `admin-users`.
+Future<void> resetUserPassword(String userId, String password) async {
+  try {
+    await supabase.functions.invoke('admin-users', body: {
+      'action': 'reset_password',
+      'user_id': userId,
+      'password': password,
+    });
+  } on FunctionException catch (e) {
+    final det = e.details;
+    final msg = det is Map && det['error'] is String
+        ? det['error'] as String
+        : 'No se pudo cambiar la contraseña.';
+    throw UserCreateError(msg);
   }
 }

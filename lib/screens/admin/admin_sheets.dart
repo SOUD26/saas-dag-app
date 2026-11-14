@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme.dart';
 import 'admin_data.dart';
+import 'admin_access.dart';
 import 'admin_shifts.dart';
 import 'admin_ui.dart';
 
@@ -245,6 +246,19 @@ Future<void> showGuardSheet(
         _row('Alertas', '${d.flagCount(g.id)} en 7 días'),
         const SizedBox(height: 14),
         ShiftLogSection(d: d, guardId: g.id),
+        const SizedBox(height: 14),
+        if (d.staffById(g.id) != null)
+          Builder(
+            builder: (ctx) => OutlinedButton.icon(
+              style: smallOutline(),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                showAccessSheet(context, d, d.staffById(g.id)!, reload);
+              },
+              icon: const Icon(Icons.lock_person_rounded),
+              label: const Text('Accesos y contraseña'),
+            ),
+          ),
         const SizedBox(height: 14),
         const Text('Últimos movimientos', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),

@@ -25,6 +25,7 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 - Quitar acceso = `active=false`; nunca borrar. Todo cambio sensible va a `audit_log`.
 - Guarda: usuario + contraseña + cara + GPS, sin prueba de vida (decisión de Isaac). Si falla cámara/luz, entra con contraseña + GPS y queda marcado como alerta.
 - Supervisor: cara 1:1 contra su propia plantilla (por construir).
+- Panel de accesos: cada módulo nuevo que tenga funciones delegables debe insertar sus permisos en la tabla `permissions` (key, label, module, description, grantable_to) en su migración; aparecen solos en el panel. Nunca agregar un permiso que el SQL (RLS/funciones) no haga cumplir: una casilla que no hace nada da falsa seguridad.
 - Cada módulo que recolecta datos personales debe registrarlos en el documento `registro-datos-legal` del Project de claude.ai.
 
 ## Cómo trabajar
