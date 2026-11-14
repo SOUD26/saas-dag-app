@@ -26,6 +26,7 @@ class _AdminHomeState extends State<AdminHome> {
   String _flagFilter = 'pending';
   AdminData? _data;
   Object? _error;
+  String? _companyId; // solo súper administrador: empresa elegida
 
   @override
   void initState() {
@@ -35,10 +36,11 @@ class _AdminHomeState extends State<AdminHome> {
 
   Future<void> _load() async {
     try {
-      final d = await loadAdminData();
+      final d = await loadAdminData(selectedCompanyId: _companyId);
       if (!mounted) return;
       setState(() {
         _data = d;
+        _companyId = d.isSuper ? d.companyId : null;
         _error = null;
       });
     } catch (e) {
@@ -80,7 +82,28 @@ class _AdminHomeState extends State<AdminHome> {
           appBar: AppBar(
             backgroundColor: AppColors.navy,
             foregroundColor: Colors.white,
-            title: Text(widget.profile.companyName ?? 'Administración'),
+            title: (d != null && d.isSuper && d.companies.isNotEmpty)
+                ? DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: d.companyId,
+                      dropdownColor: AppColors.navy,
+                      iconEnabledColor: Colors.white,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      items: [
+                        for (final c in d.companies)
+                          DropdownMenuItem(value: c.$1, child: Text(c.$2)),
+                      ],
+                      onChanged: (v) {
+                        setState(() => _companyId = v);
+                        _load();
+                      },
+                    ),
+                  )
+                : Text(widget.profile.companyName ?? 'Administración'),
             actions: [
               IconButton(
                 tooltip: 'Actualizar',
@@ -113,7 +136,7 @@ class _AdminHomeState extends State<AdminHome> {
                   color: AppColors.amber,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: const Text(
-                    'Vista previa: así la verá un administrador de empresa',
+                    'Modo súper administrador: elige la empresa arriba',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.navy),
                   ),

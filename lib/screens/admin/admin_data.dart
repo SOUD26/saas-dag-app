@@ -119,8 +119,13 @@ class AdminData {
     required this.guards,
     required this.assign,
     required this.verifs,
+    this.companies = const [],
+    this.isSuper = false,
   });
 
+  /// Solo para el súper administrador: empresas entre las que puede elegir.
+  final List<(String, String)> companies;
+  final bool isSuper;
   final String? companyId;
   final List<AClient> clients;
   final List<ASite> sites;
@@ -199,7 +204,7 @@ class AdminData {
 
 double? _num(dynamic v) => v == null ? null : (v as num).toDouble();
 
-Future<AdminData> loadAdminData() async {
+Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
   final uid = supabase.auth.currentUser!.id;
   final me = await supabase
       .from('profiles')
@@ -208,17 +213,37 @@ Future<AdminData> loadAdminData() async {
       .maybeSingle();
   final since = DateTime.now().toUtc().subtract(const Duration(days: 7));
 
-  final clientRows =
-      await supabase.from('clients').select('id, name, active').order('name');
-  final siteRows = await supabase
-      .from('sites')
-      .select('id, client_id, name, lat, lng, radius_m, active')
+  // El súper administrador no pertenece a una empresa: elige cuál administrar.
+  final isSuper = me?['company_id'] == null;
+  var companies = <(String, String)>[];
+  String? cid = me?['company_id'] as String?;
+  if (isSuper) {
+    final rows = await supabase.from('companies').select('id, name').order('name');
+    companies = [for (final r in rows) (r['id'] as String, r['name'] as String)];
+    cid = companies.any((c) => c.$1 == selectedCompanyId)
+        ? selectedCompanyId
+        : (companies.isNotEmpty ? companies.first.$1 : null);
+  }
+  bool mine(Map<String, dynamic> r) => !isSuper || r['company_id'] == cid;
+
+  final clientRowsAll = await supabase
+      .from('clients')
+      .select('id, name, active, company_id')
       .order('name');
-  final guardRows = await supabase
+  final siteRowsAll = await supabase
+      .from('sites')
+      .select('id, client_id, name, lat, lng, radius_m, active, company_id')
+      .order('name');
+  final guardRowsAll = await supabase
       .from('profiles')
-      .select('id, full_name, active')
+      .select('id, full_name, active, company_id')
       .eq('role', 'guard')
       .order('full_name');
+  final clientRows = clientRowsAll.where(mine).toList();
+  final siteRows = siteRowsAll.where(mine).toList();
+  final guardRows = guardRowsAll.where(mine).toList();
+  final guardIds = {for (final r in guardRows) r['id'] as String};
+  final siteIds = {for (final r in siteRows) r['id'] as String};
   final assignRows =
       await supabase.from('guard_sites').select('guard_id, site_id, active');
   final verifRows = await supabase
@@ -232,11 +257,14 @@ Future<AdminData> loadAdminData() async {
   final assign = <String, Set<String>>{};
   for (final r in assignRows) {
     if (r['active'] == false) continue;
+    if (!guardIds.contains(r['guard_id']) || !siteIds.contains(r['site_id'])) continue;
     (assign[r['guard_id'] as String] ??= <String>{}).add(r['site_id'] as String);
   }
 
   return AdminData(
-    companyId: me?['company_id'] as String?,
+    companyId: cid,
+    companies: companies,
+    isSuper: isSuper,
     clients: [
       for (final r in clientRows)
         AClient(r['id'] as String, r['name'] as String, (r['active'] as bool?) ?? true),
@@ -263,7 +291,7 @@ Future<AdminData> loadAdminData() async {
     ],
     assign: assign,
     verifs: [
-      for (final r in verifRows)
+      for (final r in verifRows.where((r) => !isSuper || siteIds.contains(r['site_id'])))
         AVerif(
           id: r['id'] as String,
           guardId: r['guard_id'] as String?,
