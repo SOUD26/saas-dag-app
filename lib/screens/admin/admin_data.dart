@@ -1,3 +1,5 @@
+import 'package:supabase_flutter/supabase_flutter.dart' show FunctionException;
+
 import '../../supabase.dart';
 
 const _gt = Duration(hours: 6); // Guatemala = UTC-6 todo el año
@@ -286,6 +288,43 @@ Future<void> reviewVerif(String id, String outcome) =>
 
 Future<void> reopenVerif(String id) =>
     supabase.rpc('reopen_verification', params: {'p_id': id});
+
+/// Error con mensaje listo para mostrar al usuario.
+class UserCreateError implements Exception {
+  const UserCreateError(this.message);
+  final String message;
+}
+
+/// Crea un usuario con la función de servidor `admin-users`.
+/// Las reglas de quién puede crear a quién se validan en el servidor (SQL).
+Future<void> createUserAccount({
+  required String role,
+  required String companyId,
+  required String fullName,
+  String? email,
+  String? username,
+  String? password,
+  String? clientId,
+}) async {
+  try {
+    await supabase.functions.invoke('admin-users', body: {
+      'action': 'create_user',
+      'role': role,
+      'company_id': companyId,
+      'full_name': fullName,
+      if (email != null) 'email': email,
+      if (username != null) 'username': username,
+      if (password != null && password.isNotEmpty) 'password': password,
+      if (clientId != null) 'client_id': clientId,
+    });
+  } on FunctionException catch (e) {
+    final det = e.details;
+    final msg = det is Map && det['error'] is String
+        ? det['error'] as String
+        : 'No se pudo crear el usuario.';
+    throw UserCreateError(msg);
+  }
+}
 
 Future<void> createClient(String companyId, String name) =>
     supabase.from('clients').insert({'company_id': companyId, 'name': name});

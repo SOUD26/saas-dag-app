@@ -217,11 +217,26 @@ class GuardsView extends StatelessWidget {
     return AdminPage(
       onRefresh: reload,
       children: [
-        SectionHead('Guardas (${d.guards.length})'),
+        SectionHead(
+          'Guardas (${d.guards.length})',
+          trailing: FilledButton.icon(
+            style: smallBtn(),
+            onPressed: () {
+              final cid = d.companyId;
+              if (cid == null) {
+                toast(context, 'Esta cuenta no tiene empresa asignada.');
+                return;
+              }
+              showNewUserDialog(context, d, cid, reload);
+            },
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            label: const Text('Nuevo usuario'),
+          ),
+        ),
         if (d.guards.isEmpty)
           const EmptyState(
             Icons.badge_outlined,
-            'Aún no hay guardas. Los usuarios se crearán desde aquí en la siguiente fase.',
+            'Aún no hay guardas. Crea el primero con "Nuevo usuario".',
           )
         else
           for (final g in d.guards)
