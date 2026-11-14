@@ -7,6 +7,7 @@ import '../../supabase.dart';
 import '../../theme.dart';
 import 'admin_data.dart';
 import 'admin_sheets.dart';
+import 'admin_shifts.dart';
 import 'admin_ui.dart';
 import 'admin_views.dart';
 
@@ -64,6 +65,7 @@ class _AdminHomeState extends State<AdminHome> {
       (Icons.flag_rounded, 'Alertas'),
       (Icons.place_rounded, 'Sitios'),
       (Icons.badge_rounded, 'Guardas'),
+      (Icons.event_note_rounded, 'Turnos'),
       (Icons.business_rounded, 'Clientes'),
     ];
 
@@ -205,6 +207,8 @@ class _AdminHomeState extends State<AdminHome> {
       case 3:
         return GuardsView(d: d, reload: _load);
       case 4:
+        return ShiftsView(d: d, reload: _load);
+      case 5:
         return ClientsView(d: d, reload: _load);
       default:
         return _Dashboard(

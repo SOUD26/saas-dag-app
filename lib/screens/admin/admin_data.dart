@@ -1,4 +1,4 @@
-import 'package:supabase_flutter/supabase_flutter.dart' show FunctionException;
+import 'package:supabase_flutter/supabase_flutter.dart' show FunctionException, PostgrestException;
 
 import '../../supabase.dart';
 
@@ -11,6 +11,13 @@ DateTime todayStartUtc() {
   final g = DateTime.now().toUtc().subtract(_gt);
   return DateTime.utc(g.year, g.month, g.day, 6);
 }
+
+/// Convierte una fecha/hora escrita en hora de Guatemala a UTC.
+DateTime gtToUtc(int y, int m, int d, int h, int min) =>
+    DateTime.utc(y, m, d, h, min).add(_gt);
+
+/// Fecha/hora en Guatemala (los campos de año, mes, día, hora son los locales).
+DateTime gtLocal(DateTime t) => t.toUtc().subtract(_gt);
 
 String fmtTime(DateTime t) {
   final l = t.toUtc().subtract(_gt);
@@ -82,6 +89,35 @@ class AGuard {
   final bool active;
 }
 
+class AShift {
+  const AShift({
+    required this.id,
+    required this.siteId,
+    required this.guardId,
+    required this.startsAt,
+    required this.endsAt,
+    required this.grace,
+    required this.cancelled,
+    required this.status,
+    this.arrivedAt,
+    this.lateMinutes,
+    this.flags = 0,
+    this.notes,
+  });
+  final String id;
+  final String siteId;
+  final String guardId;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final int grace;
+  final bool cancelled;
+  final String status;
+  final DateTime? arrivedAt;
+  final int? lateMinutes;
+  final int flags;
+  final String? notes;
+}
+
 class AVerif {
   const AVerif({
     required this.id,
@@ -121,7 +157,14 @@ class AdminData {
     required this.verifs,
     this.companies = const [],
     this.isSuper = false,
+    this.shifts = const [],
   });
+
+  /// Turnos de los últimos 30 días y los próximos 30 (con su resultado).
+  final List<AShift> shifts;
+
+  List<AShift> shiftsOf(String guardId) =>
+      shifts.where((x) => x.guardId == guardId).toList();
 
   /// Solo para el súper administrador: empresas entre las que puede elegir.
   final List<(String, String)> companies;
@@ -254,6 +297,17 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
       .order('created_at', ascending: false)
       .limit(1000);
 
+  final nowUtc = DateTime.now().toUtc();
+  final shiftRowsAll = await supabase
+      .from('shift_log')
+      .select(
+          'shift_id, company_id, site_id, guard_id, starts_at, ends_at, grace_minutes, cancelled, notes, arrived_at, late_minutes, flags, status')
+      .gte('starts_at', nowUtc.subtract(const Duration(days: 30)).toIso8601String())
+      .lte('starts_at', nowUtc.add(const Duration(days: 30)).toIso8601String())
+      .order('starts_at', ascending: false)
+      .limit(2000);
+  final shiftRows = shiftRowsAll.where(mine).toList();
+
   final assign = <String, Set<String>>{};
   for (final r in assignRows) {
     if (r['active'] == false) continue;
@@ -290,6 +344,25 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
         ),
     ],
     assign: assign,
+    shifts: [
+      for (final r in shiftRows)
+        AShift(
+          id: r['shift_id'] as String,
+          siteId: r['site_id'] as String,
+          guardId: r['guard_id'] as String,
+          startsAt: DateTime.parse(r['starts_at'] as String),
+          endsAt: DateTime.parse(r['ends_at'] as String),
+          grace: (r['grace_minutes'] as num?)?.toInt() ?? 10,
+          cancelled: (r['cancelled'] as bool?) ?? false,
+          status: (r['status'] as String?) ?? 'programado',
+          arrivedAt: r['arrived_at'] == null
+              ? null
+              : DateTime.parse(r['arrived_at'] as String),
+          lateMinutes: (r['late_minutes'] as num?)?.toInt(),
+          flags: (r['flags'] as num?)?.toInt() ?? 0,
+          notes: r['notes'] as String?,
+        ),
+    ],
     verifs: [
       for (final r in verifRows.where((r) => !isSuper || siteIds.contains(r['site_id'])))
         AVerif(
@@ -373,3 +446,38 @@ Future<void> createSite({
       'lng': lng,
       'radius_m': radius,
     });
+
+/// Error de turnos con mensaje listo para mostrar.
+class ShiftError implements Exception {
+  const ShiftError(this.message);
+  final String message;
+}
+
+ShiftError _shiftError(PostgrestException e) {
+  if (e.code == '23P01') {
+    return const ShiftError('Ese guarda ya tiene un turno que se cruza con ese horario.');
+  }
+  if (e.code == '42501') {
+    return const ShiftError('No tienes permiso para cambiar turnos de ese sitio.');
+  }
+  return const ShiftError('No se pudo guardar el turno.');
+}
+
+Future<void> insertShifts(List<Map<String, dynamic>> rows) async {
+  try {
+    await supabase.from('shifts').insert(rows);
+  } on PostgrestException catch (e) {
+    throw _shiftError(e);
+  }
+}
+
+Future<void> updateShift(String id, Map<String, dynamic> values) async {
+  try {
+    await supabase.from('shifts').update({
+      ...values,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', id);
+  } on PostgrestException catch (e) {
+    throw _shiftError(e);
+  }
+}

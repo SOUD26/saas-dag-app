@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme.dart';
 import 'admin_data.dart';
+import 'admin_shifts.dart';
 import 'admin_ui.dart';
 
 typedef Reload = Future<void> Function();
@@ -242,6 +243,8 @@ Future<void> showGuardSheet(
         _row('Sitios', sites.isEmpty ? 'Sin sitios asignados' : sites.join(', ')),
         _row('Verificaciones', '${mine.length} en 7 días'),
         _row('Alertas', '${d.flagCount(g.id)} en 7 días'),
+        const SizedBox(height: 14),
+        ShiftLogSection(d: d, guardId: g.id),
         const SizedBox(height: 14),
         const Text('Últimos movimientos', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
