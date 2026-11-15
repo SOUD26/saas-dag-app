@@ -15,10 +15,13 @@ import 'staff_form.dart';
 
 /// Pantalla del administrador de empresa: centro de mando + secciones.
 class AdminHome extends StatefulWidget {
-  const AdminHome({super.key, required this.profile, this.preview = false});
+  const AdminHome({super.key, required this.profile, this.preview = false, this.initialCompanyId});
 
   final Profile profile;
   final bool preview;
+
+  /// Súper administrador: empresa con la que abre el panel.
+  final String? initialCompanyId;
 
   @override
   State<AdminHome> createState() => _AdminHomeState();
@@ -34,6 +37,7 @@ class _AdminHomeState extends State<AdminHome> {
   @override
   void initState() {
     super.initState();
+    _companyId = widget.initialCompanyId;
     _load();
   }
 
@@ -140,7 +144,7 @@ class _AdminHomeState extends State<AdminHome> {
                   color: AppColors.amber,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: const Text(
-                    'Modo súper administrador: elige la empresa arriba',
+                    'Modo súper administrador: lo que hagas aquí queda a tu nombre en la bitácora',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.navy),
                   ),

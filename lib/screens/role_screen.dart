@@ -66,7 +66,7 @@ class RoleScreen extends StatelessWidget {
                     _ModuleGrid(modules: info.modules, color: info.color),
                     if (canPreview) ...[
                       const SizedBox(height: 28),
-                      _PreviewPicker(profile: profile),
+                      RolePreviewPicker(profile: profile),
                     ],
                     const SizedBox(height: 28),
                     Center(
@@ -213,8 +213,9 @@ class _ModuleGrid extends StatelessWidget {
   }
 }
 
-class _PreviewPicker extends StatelessWidget {
-  const _PreviewPicker({required this.profile});
+/// Abre la pantalla de cada rol sin cerrar sesión (solo súper admin).
+class RolePreviewPicker extends StatelessWidget {
+  const RolePreviewPicker({super.key, required this.profile});
 
   final Profile profile;
 

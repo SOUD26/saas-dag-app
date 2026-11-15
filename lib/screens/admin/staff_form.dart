@@ -1,9 +1,11 @@
 // Formulario de persona: alta (cuenta + ficha + documentos + foto) y edición de la ficha.
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../theme.dart';
+import '../../widgets/formatters.dart';
 import 'admin_data.dart';
 import 'admin_sheets.dart' show Reload;
 import 'admin_ui.dart';
@@ -27,44 +29,19 @@ Future<void> openStaffForm(
   required String companyId,
   required Reload reload,
   AStaff? person,
+  String? initialRole,
 }) {
   return Navigator.of(context).push<void>(
     MaterialPageRoute(
-      builder: (_) => StaffFormPage(d: d, companyId: companyId, reload: reload, person: person),
+      builder: (_) => StaffFormPage(
+        d: d,
+        companyId: companyId,
+        reload: reload,
+        person: person,
+        initialRole: initialRole,
+      ),
     ),
   );
-}
-
-// ───────────────────────── Campos de texto con formato ─────────────────────────
-
-/// Escribe "15031990" y queda "15/03/1990".
-class _DateFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final digits = onlyDigits(newValue.text);
-    final b = StringBuffer();
-    for (var i = 0; i < digits.length && i < 8; i++) {
-      if (i == 2 || i == 4) b.write('/');
-      b.write(digits[i]);
-    }
-    final t = b.toString();
-    return TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
-  }
-}
-
-/// DPI como viene en la tarjeta: "1234 56789 0101".
-class _DpiFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final digits = onlyDigits(newValue.text);
-    final b = StringBuffer();
-    for (var i = 0; i < digits.length && i < 13; i++) {
-      if (i == 4 || i == 9) b.write(' ');
-      b.write(digits[i]);
-    }
-    final t = b.toString();
-    return TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
-  }
 }
 
 /// Un documento en edición: número y fechas, y si se registra como renovación.
@@ -98,6 +75,7 @@ class StaffFormPage extends StatefulWidget {
     required this.companyId,
     required this.reload,
     this.person,
+    this.initialRole,
   });
 
   final AdminData d;
@@ -105,13 +83,16 @@ class StaffFormPage extends StatefulWidget {
   final Reload reload;
   final AStaff? person;
 
+  /// Alta: rol con el que abre el formulario (p. ej. 'company_admin').
+  final String? initialRole;
+
   @override
   State<StaffFormPage> createState() => _StaffFormPageState();
 }
 
 class _StaffFormPageState extends State<StaffFormPage> {
   // Cuenta (solo alta)
-  late String _role = widget.person?.role ?? 'guard';
+  late String _role = widget.person?.role ?? widget.initialRole ?? 'guard';
   final _email = TextEditingController();
   final _user = TextEditingController();
   final _pass = TextEditingController();
@@ -585,7 +566,7 @@ class _StaffFormPageState extends State<StaffFormPage> {
         ),
         const SizedBox(height: 16),
       ] else if (widget.person?.login != null || _file?.login != null) ...[
-        _Card(
+        FormCard(
           title: 'Cuenta',
           children: [
             _info('Rol', roleLabels[_role] ?? _role),
@@ -594,12 +575,12 @@ class _StaffFormPageState extends State<StaffFormPage> {
         ),
       ],
       if (_staff) ...[
-        _Card(
+        FormCard(
           title: 'Foto de perfil${_field ? ' *' : ''}',
           subtitle: 'Para que el supervisor y el guarda se reconozcan en el sitio.',
           children: [_photoRow()],
         ),
-        _Card(
+        FormCard(
           title: 'Datos personales',
           children: [
             _text(_first, 'Nombres *', 'first', caps: true),
@@ -625,7 +606,7 @@ class _StaffFormPageState extends State<StaffFormPage> {
           ],
         ),
       ] else
-        _Card(
+        FormCard(
           title: 'Datos',
           children: [
             _text(_fullName, 'Nombre completo *', 'fullName', caps: true),
@@ -635,7 +616,7 @@ class _StaffFormPageState extends State<StaffFormPage> {
       if (_isNew && _createdId == null) _accountCard(clients),
       if (_staff) _documentsCard(),
       if (_staff)
-        _Card(
+        FormCard(
           title: 'Contacto de emergencia',
           subtitle: 'A quién avisar si le pasa algo. El supervisor lo puede ver.',
           children: [
@@ -655,7 +636,7 @@ class _StaffFormPageState extends State<StaffFormPage> {
   Widget _accountCard(List<AClient> clients) {
     final guard = _role == 'guard';
     final needsClient = _role == 'client' || _role == 'resident';
-    return _Card(
+    return FormCard(
       title: 'Cuenta',
       subtitle: guard
           ? 'El guarda entra con usuario y contraseña en el teléfono del sitio.'
@@ -696,7 +677,7 @@ class _StaffFormPageState extends State<StaffFormPage> {
   }
 
   Widget _documentsCard() {
-    return _Card(
+    return FormCard(
       title: 'Documentos y vencimientos',
       subtitle: 'Te avisamos 30 días antes de que venza cualquiera.',
       children: [
@@ -852,7 +833,7 @@ class _StaffFormPageState extends State<StaffFormPage> {
         controller: _dpi,
         enabled: !_busy,
         keyboardType: TextInputType.number,
-        inputFormatters: [_DpiFormatter()],
+        inputFormatters: [DpiTextFormatter()],
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           labelText: 'DPI (CUI) *',
@@ -893,7 +874,7 @@ class _StaffFormPageState extends State<StaffFormPage> {
         controller: c,
         enabled: !_busy,
         keyboardType: TextInputType.number,
-        inputFormatters: [_DateFormatter()],
+        inputFormatters: [DateTextFormatter()],
         decoration: InputDecoration(labelText: label, hintText: 'dd/mm/aaaa', errorText: _errs[key]),
       ),
     );
@@ -908,34 +889,6 @@ class _StaffFormPageState extends State<StaffFormPage> {
           ],
         ),
       );
-}
-
-class _Card extends StatelessWidget {
-  const _Card({required this.title, required this.children, this.subtitle});
-  final String title;
-  final String? subtitle;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Panel(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(subtitle!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-            ],
-            const SizedBox(height: 12),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ───────────────────────── Documentos por vencer ─────────────────────────

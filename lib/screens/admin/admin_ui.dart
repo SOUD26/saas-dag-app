@@ -224,3 +224,32 @@ class PersonAvatar extends StatelessWidget {
     );
   }
 }
+
+/// Bloque de formulario con título y subtítulo.
+class FormCard extends StatelessWidget {
+  const FormCard({super.key, required this.title, required this.children, this.subtitle});
+  final String title;
+  final String? subtitle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Panel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(subtitle!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+            ],
+            const SizedBox(height: 12),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
