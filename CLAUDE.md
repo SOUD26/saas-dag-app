@@ -27,6 +27,9 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 - Supervisor: cara 1:1 contra su propia plantilla (por construir).
 - Panel de accesos: cada módulo nuevo que tenga funciones delegables debe insertar sus permisos en la tabla `permissions` (key, label, module, description, grantable_to) en su migración; aparecen solos en el panel. Nunca agregar un permiso que el SQL (RLS/funciones) no haga cumplir: una casilla que no hace nada da falsa seguridad.
 - Cada módulo que recolecta datos personales debe registrarlos en el documento `registro-datos-legal` del Project de claude.ai.
+- Datos de RR. HH. (DPI, nacimiento, dirección, contacto de emergencia) viven en `staff_records`; los vencimientos y escaneos en `documents`. Nunca en `profiles`. Los ven la persona, el admin de su empresa y el súper admin; el supervisor solo ve teléfono, foto y contacto de emergencia (`staff_emergency_contact`) y el estado de documentos (`document_alerts`) de sus guardas.
+- El rol no se cambia nunca (no hay permiso de columna). El admin de empresa no activa/desactiva a otro admin ni a sí mismo (trigger en `profiles`).
+- La bitácora anota qué columnas cambiaron en datos personales, nunca los valores.
 
 ## Cómo trabajar
 - Rama de trabajo: `app-login`. Pendiente fusionar a `main`.
@@ -39,7 +42,8 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 ## Estado y pendientes
 - Módulo 1 (autenticación y roles): terminado y probado. Cara = módulo aparte.
 - Módulo 2 (sitios y personal): hecho y compilando, falta que Isaac lo pruebe en pantalla: pestaña Personal (crear usuario, cuenta activa, funciones extra, cambiar contraseña), Turnos con bitácora del guarda, selector de empresa para el súper admin.
-- Siguiente: pantalla del supervisor; asignar guardas a sitios; ubicación del sitio en el mapa; emparejar teléfono↔sitio (QR); entrada única con cara configurable por empresa; reconocimiento facial; auditoría de turnos.
+- Fichas (2026-11-14): base de datos lista y probada (empresa + suscripción, cliente, ficha de personal, documentos con vencimiento, buckets privados `avatars`/`logos`/`documents`, bitácora de fichas y de turnos). Pruebas en `supabase/tests/modulo2_fichas_permisos.sql`. Faltan las pantallas.
+- Siguiente: formularios de ficha en la app (Nuevo usuario + ficha, empresa, cliente, documentos); pantalla del supervisor; asignar guardas a sitios; ubicación del sitio en el mapa; emparejar teléfono↔sitio (QR); entrada única con cara configurable por empresa; reconocimiento facial.
 - Después: rondas con QR, alertas y pánico, portal del cliente.
 - Antes del lanzamiento: decidir repo público/privado, llave de firma propia del APK, proveedor de mapas, plan Pro de Supabase, borrar datos demo.
 
