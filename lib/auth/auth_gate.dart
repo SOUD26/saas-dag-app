@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/profile.dart';
 import '../screens/admin/admin_home.dart';
+import '../screens/guard/guard_home.dart';
 import '../screens/login_screen.dart';
 import '../screens/no_access_screen.dart';
 import '../screens/role_screen.dart';
@@ -97,6 +98,7 @@ class _AuthGateState extends State<AuthGate> {
         if (profile.role == AppRole.superAdmin) return SuperHome(profile: profile);
         if (profile.role == AppRole.companyAdmin) return AdminHome(profile: profile);
         if (profile.role == AppRole.supervisor) return SupervisorHome(profile: profile);
+        if (profile.role == AppRole.guard) return GuardHome(profile: profile);
         return RoleScreen(profile: profile);
       },
     );

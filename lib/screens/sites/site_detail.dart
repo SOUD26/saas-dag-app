@@ -7,6 +7,8 @@ import '../admin/admin_ui.dart' show Panel, Pill, toast;
 import '../admin/staff_file.dart' show fmtDate;
 import 'site_data.dart';
 import 'site_form.dart';
+import 'visitor_photos.dart';
+import '../guard/readers.dart' show fmtPlate;
 
 /// Ficha del sitio. El administrador aprueba, devuelve, edita y activa/desactiva.
 /// El supervisor ve sus sitios y edita sus propuestas mientras no estén aprobadas.
@@ -40,6 +42,9 @@ class _SiteDetailPageState extends State<SiteDetailPage> {
   List<ImplType> _types = [];
   String? _error;
   bool _busy = false;
+  List<Map<String, dynamic>> _inside = [];
+  List<Map<String, dynamic>> _entries = [];
+  List<Map<String, dynamic>> _log = [];
 
   @override
   void initState() {
@@ -51,10 +56,39 @@ class _SiteDetailPageState extends State<SiteDetailPage> {
     try {
       final s = await loadSiteFull(widget.siteId);
       final types = await loadImplTypes(companyId: s.companyId);
+      var inside = <Map<String, dynamic>>[];
+      var entries = <Map<String, dynamic>>[];
+      var log = <Map<String, dynamic>>[];
+      if (s.approved) {
+        try {
+          if (s.visitorControl) {
+            final rows = await supabase.rpc('site_inside', params: {'p_site_id': widget.siteId});
+            inside = [for (final r in (rows as List<dynamic>)) Map<String, dynamic>.from(r as Map)];
+            entries = await supabase
+                .from('access_entries')
+                .select('id, kind, plate, person_name, doc_kind, doc_number, visitor_company_text, '
+                    'visitor_companies(name), destination, status, entered_at, exited_at, entry_offline, doc_photo_path')
+                .eq('site_id', widget.siteId)
+                .order('entered_at', ascending: false)
+                .limit(30);
+          }
+          log = await supabase
+              .from('site_log')
+              .select('id, category, body, happened_at, offline, author_id, profiles(full_name)')
+              .eq('site_id', widget.siteId)
+              .order('happened_at', ascending: false)
+              .limit(20);
+        } catch (_) {
+          // La ficha se muestra igual, sin la actividad.
+        }
+      }
       if (!mounted) return;
       setState(() {
         _s = s;
         _types = types;
+        _inside = inside;
+        _entries = entries;
+        _log = log;
         _error = null;
       });
     } catch (_) {
@@ -435,6 +469,8 @@ class _SiteDetailPageState extends State<SiteDetailPage> {
               ? Pill('Faltan ${p.guardsRequired - p.guards.length}', kOrange)
               : null,
         ),
+      if (s.approved && s.visitorControl) _entriesCard(s),
+      if (s.approved) _logCard(),
       _card('Administradores y contactos del cliente', [
         if (s.contacts.isEmpty) const Text('Sin contactos registrados.', style: TextStyle(color: AppColors.muted)),
         for (final c in s.contacts)
@@ -469,6 +505,110 @@ class _SiteDetailPageState extends State<SiteDetailPage> {
             style: const TextStyle(color: AppColors.muted, fontSize: 13)),
       ),
     ];
+  }
+
+  String _hm(String iso) {
+    final d = DateTime.parse(iso).toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final now = DateTime.now();
+    final today = d.year == now.year && d.month == now.month && d.day == now.day;
+    return today ? '${two(d.hour)}:${two(d.minute)}' : '${two(d.day)}/${two(d.month)} ${two(d.hour)}:${two(d.minute)}';
+  }
+
+  Widget _entriesCard(SiteFull s) {
+    String title(Map<String, dynamic> e) {
+      final plate = e['plate'] as String?;
+      final name = e['person_name'] as String?;
+      return [if (plate != null && plate.isNotEmpty) fmtPlate(plate), if (name != null && name.isNotEmpty) name].join(' · ');
+    }
+
+    String company(Map<String, dynamic> e) =>
+        ((e['visitor_companies'] as Map?)?['name'] as String?) ?? (e['visitor_company_text'] as String?) ?? (e['company_name'] as String?) ?? '';
+    return _card(
+      'Ingresos y salidas',
+      [
+        Text('Dentro ahora: ${_inside.length}', style: const TextStyle(fontWeight: FontWeight.w800)),
+        for (final e in _inside.take(10))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Text('${title(e)}${company(e).isEmpty ? '' : ' · ${company(e)}'} · entró ${_hm(e['entered_at'] as String)}'),
+          ),
+        const SizedBox(height: 10),
+        const Text('Últimos registros', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+        if (_entries.isEmpty) const Text('Aún no hay ingresos.', style: TextStyle(color: AppColors.muted)),
+        for (final e in _entries)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${title(e)}${company(e).isEmpty ? '' : ' · ${company(e)}'}\n'
+                    'Entró ${_hm(e['entered_at'] as String)}'
+                    '${e['exited_at'] != null ? ' · salió ${_hm(e['exited_at'] as String)}' : ' · dentro'}'
+                    '${e['entry_offline'] == true ? ' · registrado sin señal' : ''}',
+                  ),
+                ),
+                if (widget.asAdmin && e['doc_photo_path'] != null)
+                  IconButton(
+                    tooltip: 'Ver foto del documento',
+                    onPressed: () async {
+                      final deleted = await showVisitorPhoto(context, e);
+                      if (deleted) await _load();
+                    },
+                    icon: const Icon(Icons.badge_rounded, color: AppColors.navy),
+                  ),
+              ],
+            ),
+          ),
+        if (widget.asAdmin && s.companyId != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => openVisitorPhotos(context, companyId: s.companyId!, siteId: s.id, title: 'Fotos · ${s.name}'),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('Fotos de documentos de este sitio'),
+            ),
+          ),
+      ],
+      trailing: Pill('${_inside.length} dentro', _inside.isEmpty ? AppColors.muted : AppColors.navy),
+    );
+  }
+
+  String _author(Map<String, dynamic> l, AdminData? d) {
+    final name = (l['profiles'] as Map?)?['full_name'] as String?;
+    if (name != null && name.isNotEmpty) return ' · $name';
+    final id = l['author_id'] as String?;
+    if (id == null || d == null) return '';
+    return ' · ${d.guardName(id)}';
+  }
+
+  Widget _logCard() {
+    const labels = {
+      'sin_novedad': 'Sin novedad',
+      'novedad': 'Novedad',
+      'incidente': 'Incidente',
+      'mantenimiento': 'Mantenimiento',
+      'visita_supervisor': 'Visita del supervisor',
+    };
+    final d = widget.d;
+    return _card('Bitácora de novedades', [
+      if (_log.isEmpty) const Text('Sin anotaciones recientes.', style: TextStyle(color: AppColors.muted)),
+      for (final l in _log)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            '${_hm(l['happened_at'] as String)} · ${labels[l['category']] ?? l['category']}'
+            '${_author(l, d)}'
+            '${l['offline'] == true ? ' · sin señal' : ''}'
+            '${(l['body'] as String?)?.isNotEmpty == true ? '\n${l['body']}' : ''}',
+            style: TextStyle(
+              color: l['category'] == 'incidente' ? AppColors.danger : AppColors.ink,
+              fontWeight: l['category'] == 'incidente' ? FontWeight.w700 : FontWeight.w400,
+            ),
+          ),
+        ),
+    ]);
   }
 
   String _every(int m) => m % 60 == 0 ? 'cada ${m ~/ 60} h' : 'cada $m min';

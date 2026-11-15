@@ -22,6 +22,17 @@ for perm in ("ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"):
             1,
         )
 
+# Llamar al supervisor con un toque (Android 11+ exige declarar la intención de marcar).
+if "android.intent.action.DIAL" not in text:
+    dial = (
+        '        <intent>\n            <action android:name="android.intent.action.DIAL"/>\n'
+        '            <data android:scheme="tel"/>\n        </intent>\n'
+    )
+    if "</queries>" in text:
+        text = text.replace("</queries>", dial + "    </queries>", 1)
+    else:
+        text = text.replace("</manifest>", "    <queries>\n" + dial + "    </queries>\n</manifest>", 1)
+
 if "login-callback" not in text:
     intent = (
         '<intent-filter>\n'

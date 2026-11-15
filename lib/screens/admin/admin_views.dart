@@ -5,6 +5,8 @@ import '../sites/implement_catalog.dart';
 import '../sites/site_data.dart' show kOrange, sevColor, siteStatusColor, siteStatusLabel;
 import '../sites/site_detail.dart';
 import '../sites/site_form.dart';
+import '../sites/visitor_companies.dart';
+import '../sites/visitor_photos.dart';
 import 'admin_data.dart';
 import 'admin_sheets.dart';
 import 'admin_ui.dart';
@@ -91,17 +93,37 @@ class SitesView extends StatelessWidget {
             label: const Text('Nuevo sitio'),
           ),
         ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: () {
-              final cid = d.companyId;
-              if (cid == null) return;
-              openImplementCatalog(context, companyId: cid);
-            },
-            icon: const Icon(Icons.inventory_2_outlined),
-            label: const Text('Catálogo de implementos y nivel de alerta'),
-          ),
+        Wrap(
+          spacing: 4,
+          children: [
+            TextButton.icon(
+              onPressed: () {
+                final cid = d.companyId;
+                if (cid == null) return;
+                openImplementCatalog(context, companyId: cid);
+              },
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const Text('Catálogo de implementos y nivel de alerta'),
+            ),
+            TextButton.icon(
+              onPressed: () {
+                final cid = d.companyId;
+                if (cid == null) return;
+                openVisitorCompanies(context, companyId: cid);
+              },
+              icon: const Icon(Icons.business_outlined),
+              label: const Text('Empresas que visitan'),
+            ),
+            TextButton.icon(
+              onPressed: () {
+                final cid = d.companyId;
+                if (cid == null) return;
+                openVisitorPhotos(context, companyId: cid);
+              },
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('Fotos de documentos'),
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         if (toApprove.isNotEmpty) ...[
