@@ -31,14 +31,16 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 ## Cómo trabajar
 - Rama de trabajo: `app-login`. Pendiente fusionar a `main`.
 - Antes de subir cambios: `flutter analyze`. Los *warnings* (imports/variables sin usar) rompen el CI; los *infos* no.
-- Si Flutter no se puede instalar en el entorno, compilar vía GitHub Actions y leer el resultado con `gh run list --branch app-login`.
+- Si Flutter no se puede instalar en el entorno, compilar vía GitHub Actions y leer el resultado con `gh run list --branch app-login` y `gh run view <id> --log | grep "error •"`.
+- Cada migración SQL se aplica en Supabase y se guarda también en `supabase/migrations`.
 - Nunca imprimir tokens en logs (el repo es público). El workflow ya oculta `cfut_…` y `Bearer …`.
 - Datos de demostración (empresa "Seguridad Demo", sitios `Demo · …`) deben borrarse antes del lanzamiento.
 
 ## Estado y pendientes
 - Módulo 1 (autenticación y roles): terminado y probado. Cara = módulo aparte.
-- Módulo 2 (sitios y personal): en curso. Pantalla del Administrador hecha. Falta: crear usuarios desde la app (conectar `admin-users`, aún no probada de punta a punta), asignar guardas a sitios, resetear contraseña, elegir ubicación del sitio en el mapa, emparejar teléfono↔sitio.
-- Después: reconocimiento facial, rondas con QR, alertas y pánico, portal del cliente.
-- Antes del lanzamiento: decidir repo público/privado, llave de firma propia del APK, proveedor de mapas, plan Pro de Supabase.
+- Módulo 2 (sitios y personal): hecho y compilando, falta que Isaac lo pruebe en pantalla: pestaña Personal (crear usuario, cuenta activa, funciones extra, cambiar contraseña), Turnos con bitácora del guarda, selector de empresa para el súper admin.
+- Siguiente: pantalla del supervisor; asignar guardas a sitios; ubicación del sitio en el mapa; emparejar teléfono↔sitio (QR); entrada única con cara configurable por empresa; reconocimiento facial; auditoría de turnos.
+- Después: rondas con QR, alertas y pánico, portal del cliente.
+- Antes del lanzamiento: decidir repo público/privado, llave de firma propia del APK, proveedor de mapas, plan Pro de Supabase, borrar datos demo.
 
 La fuente completa de decisiones está en el Project "Saas-DAG" de claude.ai (`decisiones-base`).
