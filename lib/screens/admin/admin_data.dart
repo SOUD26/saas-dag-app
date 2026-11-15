@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart' show FunctionException, PostgrestException;
 
 import '../../supabase.dart';
+import 'staff_file.dart';
 
 const _gt = Duration(hours: 6); // Guatemala = UTC-6 todo el año
 
@@ -127,6 +128,8 @@ class AStaff {
     required this.active,
     this.login,
     this.clientId,
+    this.phone,
+    this.avatarPath,
   });
   final String id;
   final String name;
@@ -134,6 +137,8 @@ class AStaff {
   final bool active;
   final String? login; // correo o usuario
   final String? clientId;
+  final String? phone;
+  final String? avatarPath;
 }
 
 /// Permiso del catálogo (tabla `permissions`).
@@ -204,7 +209,18 @@ class AdminData {
     this.perms = const [],
     this.userPerms = const {},
     this.myId = '',
+    this.avatarUrls = const {},
+    this.docAlerts = const [],
   });
+
+  /// Enlaces temporales de las fotos de perfil: personId -> enlace.
+  final Map<String, String> avatarUrls;
+
+  /// Documentos vencidos, por vencer (30 días) y faltantes de la empresa.
+  final List<DocAlert> docAlerts;
+
+  List<DocAlert> alertsOf(String personId) =>
+      docAlerts.where((a) => a.ownerKind == 'staff' && a.ownerId == personId).toList();
 
   /// Panel de accesos: personas, catálogo de permisos y permisos otorgados.
   final List<AStaff> staff;
@@ -343,7 +359,7 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
       .order('full_name');
   final staffRowsAll = await supabase
       .from('profiles')
-      .select('id, full_name, role, active, username, email, company_id, client_id')
+      .select('id, full_name, role, active, username, email, company_id, client_id, phone, avatar_path')
       .neq('role', 'super_admin')
       .order('full_name');
   final permRows = await supabase
@@ -385,11 +401,31 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
     (assign[r['guard_id'] as String] ??= <String>{}).add(r['site_id'] as String);
   }
 
+  final staffRows = staffRowsAll.where(mine).toList();
+  final avatarPaths = <String, String>{
+    for (final r in staffRows)
+      if (r['avatar_path'] is String) r['id'] as String: r['avatar_path'] as String,
+  };
+  final signed = await signedAvatarUrls(avatarPaths.values.toList());
+  var docAlerts = const <DocAlert>[];
+  if (cid != null) {
+    try {
+      docAlerts = await loadDocAlerts(cid);
+    } catch (_) {
+      // Sin alertas de documentos no se cae el panel.
+    }
+  }
+
   return AdminData(
     companyId: cid,
     myId: uid,
+    avatarUrls: {
+      for (final e in avatarPaths.entries)
+        if (signed[e.value] != null) e.key: signed[e.value]!,
+    },
+    docAlerts: docAlerts,
     staff: [
-      for (final r in staffRowsAll.where(mine))
+      for (final r in staffRows)
         AStaff(
           id: r['id'] as String,
           name: (r['full_name'] as String?) ?? 'Sin nombre',
@@ -397,6 +433,8 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
           active: (r['active'] as bool?) ?? true,
           login: (r['email'] as String?) ?? (r['username'] as String?),
           clientId: r['client_id'] as String?,
+          phone: r['phone'] as String?,
+          avatarPath: r['avatar_path'] as String?,
         ),
     ],
     perms: [
@@ -499,9 +537,9 @@ class UserCreateError implements Exception {
   final String message;
 }
 
-/// Crea un usuario con la función de servidor `admin-users`.
+/// Crea un usuario con la función de servidor `admin-users` y devuelve su id.
 /// Las reglas de quién puede crear a quién se validan en el servidor (SQL).
-Future<void> createUserAccount({
+Future<String> createUserAccount({
   required String role,
   required String companyId,
   required String fullName,
@@ -511,7 +549,7 @@ Future<void> createUserAccount({
   String? clientId,
 }) async {
   try {
-    await supabase.functions.invoke('admin-users', body: {
+    final res = await supabase.functions.invoke('admin-users', body: {
       'action': 'create_user',
       'role': role,
       'company_id': companyId,
@@ -521,6 +559,10 @@ Future<void> createUserAccount({
       if (password != null && password.isNotEmpty) 'password': password,
       if (clientId != null) 'client_id': clientId,
     });
+    final data = res.data;
+    final id = data is Map ? data['id'] as String? : null;
+    if (id == null) throw const UserCreateError('El servidor no devolvió el usuario creado.');
+    return id;
   } on FunctionException catch (e) {
     final det = e.details;
     final msg = det is Map && det['error'] is String

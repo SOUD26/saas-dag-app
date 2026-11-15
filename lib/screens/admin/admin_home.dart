@@ -11,6 +11,7 @@ import 'admin_sheets.dart';
 import 'admin_shifts.dart';
 import 'admin_ui.dart';
 import 'admin_views.dart';
+import 'staff_form.dart';
 
 /// Pantalla del administrador de empresa: centro de mando + secciones.
 class AdminHome extends StatefulWidget {
@@ -244,6 +245,8 @@ class _Dashboard extends StatelessWidget {
     final activeGuards = d.guards.where((g) => g.active).length;
     final verified = d.verifiedTodayGuards.length;
     final uncovered = d.sitesWithoutCheckToday;
+    final docUrgent = d.docAlerts.where((a) => a.urgent).length;
+    final docSoon = d.docAlerts.length - docUrgent;
 
     final kpis = [
       Kpi(
@@ -273,6 +276,19 @@ class _Dashboard extends StatelessWidget {
         icon: Icons.location_off_rounded,
         color: uncovered.isEmpty ? kOk : kWarn,
         onTap: () => go(2),
+      ),
+      Kpi(
+        label: docSoon > 0
+            ? 'Documentos vencidos o faltantes (+$docSoon por vencer)'
+            : 'Documentos vencidos o faltantes',
+        value: '$docUrgent',
+        icon: Icons.assignment_late_rounded,
+        color: docUrgent > 0 ? AppColors.danger : (docSoon > 0 ? kWarn : kOk),
+        onTap: () {
+          final cid = d.companyId;
+          if (cid == null) return;
+          openDocAlerts(context, d: d, companyId: cid, reload: reload);
+        },
       ),
     ];
 

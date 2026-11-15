@@ -206,3 +206,21 @@ void toast(BuildContext context, String msg) {
 ButtonStyle smallBtn() => FilledButton.styleFrom(minimumSize: const Size(0, 44));
 
 ButtonStyle smallOutline() => OutlinedButton.styleFrom(minimumSize: const Size(0, 44));
+
+/// Foto de la persona (o un ícono si no tiene).
+class PersonAvatar extends StatelessWidget {
+  const PersonAvatar({super.key, this.url, required this.icon, this.radius = 20});
+  final String? url;
+  final IconData icon;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: AppColors.navy.withValues(alpha: 0.08),
+      foregroundImage: url == null ? null : NetworkImage(url!),
+      child: Icon(icon, color: AppColors.navy, size: radius),
+    );
+  }
+}

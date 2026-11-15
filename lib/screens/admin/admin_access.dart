@@ -4,6 +4,8 @@ import '../../theme.dart';
 import 'admin_data.dart';
 import 'admin_sheets.dart';
 import 'admin_ui.dart';
+import 'staff_file.dart' show DocAlert;
+import 'staff_form.dart';
 
 const _roleOrder = ['guard', 'supervisor', 'company_admin', 'client', 'resident'];
 
@@ -107,7 +109,7 @@ class _PersonnelViewState extends State<PersonnelView> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Row(
                   children: [
-                    Icon(_roleIcon(x.role), color: AppColors.navy),
+                    PersonAvatar(url: d.avatarUrls[x.id], icon: _roleIcon(x.role)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -123,6 +125,10 @@ class _PersonnelViewState extends State<PersonnelView> {
                         ],
                       ),
                     ),
+                    if (x.active && d.alertsOf(x.id).isNotEmpty) ...[
+                      _DocBadge(alerts: d.alertsOf(x.id)),
+                      const SizedBox(width: 6),
+                    ],
                     if (!x.active)
                       const Pill('Inactivo', AppColors.muted)
                     else if (x.role == 'guard' && repeat.contains(x.id))
@@ -225,8 +231,8 @@ class _AccessBodyState extends State<_AccessBody> {
       children: [
         Row(
           children: [
-            Icon(_roleIcon(s.role), color: AppColors.navy),
-            const SizedBox(width: 8),
+            PersonAvatar(url: d.avatarUrls[s.id], icon: _roleIcon(s.role), radius: 26),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(s.name,
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
@@ -237,6 +243,25 @@ class _AccessBodyState extends State<_AccessBody> {
         if (s.login != null) ...[
           const SizedBox(height: 4),
           Text(s.login!, style: const TextStyle(color: AppColors.muted)),
+        ],
+        if (s.phone != null) ...[
+          const SizedBox(height: 2),
+          Text('Tel. ${s.phone}', style: const TextStyle(color: AppColors.muted)),
+        ],
+        if (cid != null) ...[
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            style: smallBtn(),
+            onPressed: () {
+              final nav = Navigator.of(context);
+              nav.pop();
+              nav.push(MaterialPageRoute<void>(
+                builder: (_) => StaffFormPage(d: d, companyId: cid, reload: widget.reload, person: s),
+              ));
+            },
+            icon: const Icon(Icons.badge_outlined),
+            label: Text(s.role == 'client' || s.role == 'resident' ? 'Datos y teléfono' : 'Ficha y documentos'),
+          ),
         ],
         const SizedBox(height: 12),
         SwitchListTile(
@@ -357,6 +382,25 @@ class _PasswordDialogState extends State<_PasswordDialog> {
           child: const Text('Cambiar'),
         ),
       ],
+    );
+  }
+}
+
+/// Ícono de documentos en la lista de personal: rojo si hay vencidos o faltantes, ámbar si solo por vencer.
+class _DocBadge extends StatelessWidget {
+  const _DocBadge({required this.alerts});
+  final List<DocAlert> alerts;
+
+  @override
+  Widget build(BuildContext context) {
+    final urgent = alerts.any((a) => a.urgent);
+    return Tooltip(
+      message: urgent ? 'Documentos vencidos o faltantes' : 'Documentos por vencer',
+      child: Icon(
+        Icons.assignment_late_rounded,
+        size: 22,
+        color: urgent ? AppColors.danger : kWarn,
+      ),
     );
   }
 }

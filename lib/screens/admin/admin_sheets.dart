@@ -5,6 +5,7 @@ import 'admin_data.dart';
 import 'admin_access.dart';
 import 'admin_shifts.dart';
 import 'admin_ui.dart';
+import 'staff_form.dart';
 
 typedef Reload = Future<void> Function();
 
@@ -231,8 +232,8 @@ Future<void> showGuardSheet(
       children: [
         Row(
           children: [
-            const Icon(Icons.badge_rounded, color: AppColors.navy),
-            const SizedBox(width: 8),
+            PersonAvatar(url: d.avatarUrls[g.id], icon: Icons.badge_rounded, radius: 26),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(g.name,
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
@@ -241,22 +242,52 @@ Future<void> showGuardSheet(
           ],
         ),
         const SizedBox(height: 12),
+        _row('Teléfono', d.staffById(g.id)?.phone ?? 'Sin teléfono'),
         _row('Sitios', sites.isEmpty ? 'Sin sitios asignados' : sites.join(', ')),
         _row('Verificaciones', '${mine.length} en 7 días'),
         _row('Alertas', '${d.flagCount(g.id)} en 7 días'),
+        if (d.alertsOf(g.id).isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const Text('Documentos', style: TextStyle(fontWeight: FontWeight.w700)),
+          for (final a in d.alertsOf(g.id))
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '• ${a.typeName}: ${a.when}',
+                style: TextStyle(color: a.urgent ? AppColors.danger : kWarn),
+              ),
+            ),
+        ],
         const SizedBox(height: 14),
         ShiftLogSection(d: d, guardId: g.id),
         const SizedBox(height: 14),
         if (d.staffById(g.id) != null)
           Builder(
-            builder: (ctx) => OutlinedButton.icon(
-              style: smallOutline(),
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                showAccessSheet(context, d, d.staffById(g.id)!, reload);
-              },
-              icon: const Icon(Icons.lock_person_rounded),
-              label: const Text('Accesos y contraseña'),
+            builder: (ctx) => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (d.companyId != null)
+                  FilledButton.icon(
+                    style: smallBtn(),
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      openStaffForm(context,
+                          d: d, companyId: d.companyId!, reload: reload, person: d.staffById(g.id));
+                    },
+                    icon: const Icon(Icons.badge_outlined),
+                    label: const Text('Ficha y documentos'),
+                  ),
+                OutlinedButton.icon(
+                  style: smallOutline(),
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    showAccessSheet(context, d, d.staffById(g.id)!, reload);
+                  },
+                  icon: const Icon(Icons.lock_person_rounded),
+                  label: const Text('Accesos y contraseña'),
+                ),
+              ],
             ),
           ),
         const SizedBox(height: 14),
@@ -543,214 +574,11 @@ class _NewSiteDialogState extends State<_NewSiteDialog> {
 
 // ───────────────────────── Nuevo usuario ─────────────────────────
 
-const _userRoles = <(String, String)>[
-  ('guard', 'Guarda'),
-  ('supervisor', 'Supervisor'),
-  ('client', 'Cliente (condominio u oficina)'),
-  ('resident', 'Usuario (condómino o residente)'),
-  ('company_admin', 'Administrador'),
-];
-
+/// Alta de usuario: abre el formulario completo (cuenta + ficha + documentos + foto).
 Future<void> showNewUserDialog(
   BuildContext context,
   AdminData d,
   String companyId,
   Reload reload,
-) {
-  return showDialog<void>(
-    context: context,
-    builder: (_) => _NewUserDialog(d: d, companyId: companyId, reload: reload),
-  );
-}
-
-class _NewUserDialog extends StatefulWidget {
-  const _NewUserDialog({
-    required this.d,
-    required this.companyId,
-    required this.reload,
-  });
-  final AdminData d;
-  final String companyId;
-  final Reload reload;
-
-  @override
-  State<_NewUserDialog> createState() => _NewUserDialogState();
-}
-
-class _NewUserDialogState extends State<_NewUserDialog> {
-  final _name = TextEditingController();
-  final _email = TextEditingController();
-  final _user = TextEditingController();
-  final _pass = TextEditingController();
-  String _role = 'guard';
-  String? _clientId;
-  bool _busy = false;
-  String? _error;
-
-  bool get _isGuard => _role == 'guard';
-  bool get _needsClient => _role == 'client' || _role == 'resident';
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _email.dispose();
-    _user.dispose();
-    _pass.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final name = _name.text.trim();
-    if (name.isEmpty) {
-      setState(() => _error = 'Escribe el nombre completo.');
-      return;
-    }
-    if (_isGuard && _user.text.trim().isEmpty) {
-      setState(() => _error = 'Escribe el usuario del guarda.');
-      return;
-    }
-    if (!_isGuard && _email.text.trim().isEmpty) {
-      setState(() => _error = 'Escribe el correo.');
-      return;
-    }
-    if (_isGuard && _pass.text.isEmpty) {
-      setState(() => _error = 'El guarda necesita una contraseña.');
-      return;
-    }
-    if (_needsClient && _clientId == null) {
-      setState(() => _error = 'Elige a qué cliente pertenece.');
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await createUserAccount(
-        role: _role,
-        companyId: widget.companyId,
-        fullName: name,
-        email: _isGuard ? null : _email.text.trim(),
-        username: _isGuard ? _user.text.trim() : null,
-        password: _pass.text,
-        clientId: _needsClient ? _clientId : null,
-      );
-      await widget.reload();
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      toast(context, 'Usuario creado.');
-    } on UserCreateError catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = e.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = 'No se pudo crear el usuario.';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final clients = widget.d.clients.where((c) => c.active).toList();
-    return AlertDialog(
-      title: const Text('Nuevo usuario'),
-      content: SizedBox(
-        width: 360,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DropdownButtonFormField<String>(
-                value: _role,
-                decoration: const InputDecoration(labelText: 'Rol'),
-                items: [
-                  for (final r in _userRoles)
-                    DropdownMenuItem(value: r.$1, child: Text(r.$2)),
-                ],
-                onChanged: _busy
-                    ? null
-                    : (v) => setState(() {
-                          _role = v ?? 'guard';
-                          _error = null;
-                        }),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _name,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Nombre completo'),
-              ),
-              const SizedBox(height: 12),
-              if (_isGuard)
-                TextField(
-                  controller: _user,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Usuario',
-                    helperText: 'Letras minúsculas, números, punto o guion',
-                  ),
-                )
-              else
-                TextField(
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
-                  autocorrect: false,
-                  decoration: const InputDecoration(labelText: 'Correo'),
-                ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _pass,
-                autocorrect: false,
-                decoration: InputDecoration(
-                  labelText: _isGuard ? 'Contraseña' : 'Contraseña (opcional)',
-                  helperText: _isGuard
-                      ? 'Mínimo 8 caracteres. Entrégasela al guarda.'
-                      : 'Mínimo 8. Si la dejas vacía, entra con Google.',
-                ),
-              ),
-              if (_needsClient) ...[
-                const SizedBox(height: 12),
-                if (clients.isEmpty)
-                  const Text(
-                    'Primero crea un cliente en la pestaña Clientes.',
-                    style: TextStyle(color: AppColors.danger),
-                  )
-                else
-                  DropdownButtonFormField<String>(
-                    value: _clientId,
-                    decoration: const InputDecoration(labelText: 'Cliente'),
-                    items: [
-                      for (final c in clients)
-                        DropdownMenuItem(value: c.id, child: Text(c.name)),
-                    ],
-                    onChanged: _busy ? null : (v) => setState(() => _clientId = v),
-                  ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: AppColors.danger)),
-              ],
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          style: smallBtn(),
-          onPressed: _busy ? null : _save,
-          child: const Text('Crear'),
-        ),
-      ],
-    );
-  }
-}
+) =>
+    openStaffForm(context, d: d, companyId: companyId, reload: reload);
