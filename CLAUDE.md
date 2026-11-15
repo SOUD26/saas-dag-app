@@ -13,6 +13,7 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 - App Android + Web: Flutter (código en `lib/`).
 - Base de datos y auth: Supabase, proyecto `tkjgavqmiyinhnvvckvo`. Migraciones en `supabase/migrations`, función `supabase/functions/admin-users`.
 - CI y despliegue: `.github/workflows/build.yml`. Web en https://saas-dag.pages.dev (Cloudflare Pages), se actualiza al subir a la rama `app-login`.
+- APK: pesa más de 25 MiB (límite de Cloudflare Pages), así que el CI lo sube a GitHub Releases (etiqueta `apk`) y https://saas-dag.pages.dev/descargas/saas-dag.apk (y `saas-dag-32bits.apk`) redirige ahí. Si el repo pasa a privado, hay que mover el APK a otro lugar público.
 - Mapas: OpenStreetMap con `flutter_map`. Plano 2D interactivo (3D queda para fase 3).
 - Este repo es PÚBLICO: nunca guardar secretos, contraseñas ni datos reales aquí.
 - El repo `SOUD26/Saas-DAG` es de otra app: no usar.
@@ -31,6 +32,8 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 - Datos de RR. HH. (DPI, nacimiento, dirección, contacto de emergencia) viven en `staff_records`; los vencimientos y escaneos en `documents`. Nunca en `profiles`. Los ven la persona, el admin de su empresa y el súper admin; el supervisor solo ve teléfono, foto y contacto de emergencia (`staff_emergency_contact`) y el estado de documentos (`document_alerts`) de sus guardas.
 - El rol no se cambia nunca (no hay permiso de columna). El admin de empresa no activa/desactiva a otro admin ni a sí mismo (trigger en `profiles`).
 - La bitácora anota qué columnas cambiaron en datos personales, nunca los valores.
+- Visitantes: la foto del DPI/licencia se guarda (decisión de Isaac, asume el riesgo) en el bucket privado `visitor_docs`; el guarda la sube pero no la ve; solo el admin de la empresa y el súper admin la ven y la borran (borrado a `audit_log`). El guarda no ve el historial de visitas ni el número completo del documento (solo los últimos 4).
+- App del guarda: todo registro lleva id creado en el teléfono y su hora (`p_happened_at`); se envía por la cola de `guard_store.dart`. Una función nueva que use el guarda debe ser idempotente por ese id.
 
 ## Cómo trabajar
 - Rama de trabajo: `app-login`. Pendiente fusionar a `main`.
@@ -38,6 +41,8 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 - Si Flutter no se puede instalar en el entorno, compilar vía GitHub Actions y leer el resultado con `gh run list --branch app-login` y `gh run view <id> --log | grep "error •"`.
 - Cada migración SQL se aplica en Supabase y se guarda también en `supabase/migrations`.
 - Nunca imprimir tokens en logs (el repo es público). El workflow ya oculta `cfut_…` y `Bearer …`.
+- El CI usa bash con `pipefail`; el registro completo de cada build queda en la rama `ci-logs` (`git fetch origin ci-logs`, `git show FETCH_HEAD:logs/04-build-apk.txt`). Un plugin nativo nuevo puede romper solo el APK: reglas de R8 en `android/app/proguard-rules.pro` (las regenera `ci/patch_android.py`).
+- Desde la terminal no se llega a `*.supabase.co`: probar almacenamiento por SQL (insertar en `storage.objects` como cada rol).
 - Datos de demostración (empresa "Seguridad Demo", sitios `Demo · …`) deben borrarse antes del lanzamiento.
 
 ## Estado y pendientes
@@ -47,7 +52,8 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 - Formulario de alta y ficha (`lib/screens/admin/staff_form.dart`, datos en `staff_file.dart`): cuenta + foto + ficha + documentos; interruptores porta arma / conduce moto / conduce vehículo vuelven obligatoria la licencia; guardado con `staff_precheck` → cuenta → `save_staff_file` → foto. Tarjeta y lista de documentos en el Panel. Falta: subir escaneos, fichas de empresa y cliente en pantalla.
 - Súper admin (`lib/screens/super/`): entra a "Panel general" con sus empresas; crea/edita empresas (datos, NIT, licencia DIGESSP, suscripción), las activa/suspende, crea administradores y usuarios con rol y abre el panel de cada empresa. Nadie se mueve de empresa ni cambia de rol desde la app (a propósito).
 - Módulo del guarda, parte A (2026-11-15, plan y decisiones en el documento `plan-guardas` del Project): sitios con aprobación (el supervisor propone con `save_site`, el admin aprueba con `approve_site` o devuelve con `return_site`), puestos (`site_posts`) con consignas e inventario (`site_implements`), catálogo `implement_types` con color de alerta, relevo a ciegas (`submit_handover`, `post_checklist`) y bandeja única `alerts` de 3 niveles (red/orange/yellow). App en `lib/screens/sites/`, `lib/screens/supervisor/` y `lib/screens/admin/alert_views.dart`. Pruebas en `supabase/tests/guardas_sitios_relevo.sql`. La app ya no escribe `sites` directo (solo `active`).
-- Siguiente: pantalla del guarda (recibir/entregar puesto con `post_checklist` y `submit_handover`), vincular teléfono↔sitio con QR, prueba de cara en teléfono real. Después: pantalla del supervisor completa; ficha del cliente; entrada única con cara configurable por empresa.
+- Módulo del guarda, parte B (2026-11-15): pantalla del guarda en `lib/screens/guard/` (turno con GPS, consignas, recibir/entregar puesto, ingresos con lector de placa y DPI en el teléfono, salidas, bitácora, supervisor con foto y llamada) que funciona sin señal (cola en el teléfono; el login aún necesita señal). `companies.face_required` (por defecto no). Admin: empresas que visitan, fotos de documentos, actividad del sitio e **historial de visitas** (`search_visits`, también para el supervisor). Pruebas: `guardas_turno_ingresos.sql`, `guardas_fotos_documento.sql`, `guardas_historial_visitas.sql`.
+- Siguiente: Isaac prueba el guarda en el APK; aviso de privacidad en la garita; vincular teléfono↔sitio con QR; prueba de cara en teléfono real; "el relevo no llegó" y borrado automático de fotos viejas (requieren tarea programada). Propuestas sin aprobar: visitante frecuente y lista de "no permitir ingreso". Después: pantalla del supervisor completa; ficha del cliente; entrada única con cara configurable por empresa.
 - Después: rondas con QR, alertas y pánico, portal del cliente.
 - Antes del lanzamiento: decidir repo público/privado, llave de firma propia del APK, proveedor de mapas, plan Pro de Supabase, borrar datos demo.
 

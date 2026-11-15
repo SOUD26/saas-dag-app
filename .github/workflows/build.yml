@@ -62,14 +62,30 @@ jobs:
       - name: Compilar APK
         run: flutter build apk --release --split-per-abi 2>&1 | tee ci-logs/04-build-apk.txt
 
-      - name: Armar sitio (web + APK)
+      # Cloudflare Pages no acepta archivos de más de 25 MiB y el APK (con el lector de placas) pesa
+      # más: el APK va a GitHub Releases y la dirección de siempre redirige ahí.
+      - name: Armar sitio (web + enlaces al APK)
         run: |
           mkdir -p site
           cp -r build/web/. site/
-          mkdir -p site/descargas
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk site/descargas/saas-dag.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk site/descargas/saas-dag-32bits.apk
-          ls -la site/descargas
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/apk"
+          {
+            echo "/descargas/saas-dag.apk ${base}/saas-dag.apk 302"
+            echo "/descargas/saas-dag-32bits.apk ${base}/saas-dag-32bits.apk 302"
+          } > site/_redirects
+          ls -la build/app/outputs/flutter-apk/
+
+      - name: Publicar APK en GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk /tmp/saas-dag.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk /tmp/saas-dag-32bits.apk
+          if ! gh release view apk >/dev/null 2>&1; then
+            gh release create apk --title "App Android (última versión)" \
+              --notes "Se actualiza sola con cada compilación. Teléfonos normales: saas-dag.apk. Teléfonos viejos o de 32 bits: saas-dag-32bits.apk."
+          fi
+          gh release upload apk /tmp/saas-dag.apk /tmp/saas-dag-32bits.apk --clobber
 
       - uses: actions/upload-artifact@v4
         with:
