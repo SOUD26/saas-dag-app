@@ -72,6 +72,9 @@ class ASite {
     this.clientId,
     this.lat,
     this.lng,
+    this.status = 'approved',
+    this.proposedBy,
+    this.reviewNote,
   });
   final String id;
   final String name;
@@ -80,7 +83,47 @@ class ASite {
   final double? lng;
   final int radius;
   final bool active;
+  final String status; // draft | pending | returned | approved
+  final String? proposedBy;
+  final String? reviewNote;
   bool get hasCoords => lat != null && lng != null;
+  bool get approved => status == 'approved';
+}
+
+/// Alerta de la bandeja única (verificaciones, relevos y, después, rondas y pánico).
+class AAlert {
+  const AAlert({
+    required this.id,
+    required this.source,
+    required this.severity,
+    required this.title,
+    required this.createdAt,
+    this.sourceId,
+    this.detail,
+    this.siteId,
+    this.postId,
+    this.guardId,
+    this.relatedGuardId,
+    this.reviewedAt,
+    this.outcome,
+    this.note,
+  });
+  final String id;
+  final String source; // verification | handover | round | panic | document | other
+  final String? sourceId;
+  final String severity; // red | orange | yellow
+  final String title;
+  final String? detail;
+  final String? siteId;
+  final String? postId;
+  final String? guardId;
+  final String? relatedGuardId;
+  final DateTime createdAt;
+  final DateTime? reviewedAt;
+  final String? outcome;
+  final String? note;
+  bool get pending => reviewedAt == null;
+  int get rank => severity == 'red' ? 3 : (severity == 'orange' ? 2 : 1);
 }
 
 class AGuard {
@@ -211,7 +254,38 @@ class AdminData {
     this.myId = '',
     this.avatarUrls = const {},
     this.docAlerts = const [],
+    this.alerts = const [],
   });
+
+  /// Bandeja de alertas de los últimos 7 días (más recientes primero).
+  final List<AAlert> alerts;
+
+  /// Pendientes, de la más grave a la menos grave y luego por fecha.
+  List<AAlert> get pendingAlerts {
+    final l = alerts.where((a) => a.pending).toList();
+    l.sort((a, b) {
+      final r = b.rank.compareTo(a.rank);
+      return r != 0 ? r : b.createdAt.compareTo(a.createdAt);
+    });
+    return l;
+  }
+
+  int pendingAlertsAt(String siteId) => alerts.where((a) => a.pending && a.siteId == siteId).length;
+
+  /// Peor nivel pendiente en un sitio (o null).
+  String? worstAt(String siteId) {
+    String? w;
+    var r = 0;
+    for (final a in alerts) {
+      if (a.pending && a.siteId == siteId && a.rank > r) {
+        r = a.rank;
+        w = a.severity;
+      }
+    }
+    return w;
+  }
+
+  List<ASite> get sitesToApprove => sites.where((s) => s.status == 'pending').toList();
 
   /// Enlaces temporales de las fotos de perfil: personId -> enlace.
   final Map<String, String> avatarUrls;
@@ -285,11 +359,10 @@ class AdminData {
       for (final v in verifs)
         if (v.siteId != null && !v.createdAt.isBefore(t)) v.siteId!,
     };
-    return sites.where((s) => s.active && !covered.contains(s.id)).toList();
+    return sites.where((s) => s.active && s.approved && !covered.contains(s.id)).toList();
   }
 
-  int pendingAt(String siteId) =>
-      verifs.where((v) => v.pending && v.siteId == siteId).length;
+  int pendingAt(String siteId) => pendingAlertsAt(siteId);
 
   ASite? site(String? id) {
     for (final s in sites) {
@@ -350,7 +423,7 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
       .order('name');
   final siteRowsAll = await supabase
       .from('sites')
-      .select('id, client_id, name, lat, lng, radius_m, active, company_id')
+      .select('id, client_id, name, lat, lng, radius_m, active, company_id, status, proposed_by, review_note')
       .order('name');
   final guardRowsAll = await supabase
       .from('profiles')
@@ -379,6 +452,14 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
       .from('shift_verifications')
       .select(
           'id, guard_id, site_id, kind, flagged, flag_reason, distance_m, face_score, created_at, reviewed_at, review_outcome')
+      .gte('created_at', since.toIso8601String())
+      .order('created_at', ascending: false)
+      .limit(1000);
+
+  final alertRows = await supabase
+      .from('alerts')
+      .select(
+          'id, company_id, site_id, post_id, guard_id, related_guard_id, source, source_id, severity, title, detail, created_at, reviewed_at, review_outcome, review_note')
       .gte('created_at', since.toIso8601String())
       .order('created_at', ascending: false)
       .limit(1000);
@@ -474,6 +555,28 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
           lng: _num(r['lng']),
           radius: (r['radius_m'] as num?)?.toInt() ?? 0,
           active: (r['active'] as bool?) ?? true,
+          status: (r['status'] as String?) ?? 'approved',
+          proposedBy: r['proposed_by'] as String?,
+          reviewNote: r['review_note'] as String?,
+        ),
+    ],
+    alerts: [
+      for (final r in alertRows.where(mine))
+        AAlert(
+          id: r['id'] as String,
+          source: (r['source'] as String?) ?? 'other',
+          sourceId: r['source_id'] as String?,
+          severity: (r['severity'] as String?) ?? 'yellow',
+          title: (r['title'] as String?) ?? 'Alerta',
+          detail: r['detail'] as String?,
+          siteId: r['site_id'] as String?,
+          postId: r['post_id'] as String?,
+          guardId: r['guard_id'] as String?,
+          relatedGuardId: r['related_guard_id'] as String?,
+          createdAt: DateTime.parse(r['created_at'] as String),
+          reviewedAt: r['reviewed_at'] == null ? null : DateTime.parse(r['reviewed_at'] as String),
+          outcome: r['review_outcome'] as String?,
+          note: r['review_note'] as String?,
         ),
     ],
     guards: [
@@ -525,6 +628,11 @@ Future<AdminData> loadAdminData({String? selectedCompanyId}) async {
   );
 }
 
+Future<void> reviewAlert(String id, String outcome, {String? note}) =>
+    supabase.rpc('review_alert', params: {'p_id': id, 'p_outcome': outcome, 'p_note': note});
+
+Future<void> reopenAlert(String id) => supabase.rpc('reopen_alert', params: {'p_id': id});
+
 Future<void> reviewVerif(String id, String outcome) =>
     supabase.rpc('review_verification', params: {'p_id': id, 'p_outcome': outcome});
 
@@ -574,23 +682,6 @@ Future<String> createUserAccount({
 
 Future<void> createClient(String companyId, String name) =>
     supabase.from('clients').insert({'company_id': companyId, 'name': name});
-
-Future<void> createSite({
-  required String companyId,
-  required String name,
-  required double lat,
-  required double lng,
-  required int radius,
-  String? clientId,
-}) =>
-    supabase.from('sites').insert({
-      'company_id': companyId,
-      'client_id': clientId,
-      'name': name,
-      'lat': lat,
-      'lng': lng,
-      'radius_m': radius,
-    });
 
 /// Error de turnos con mensaje listo para mostrar.
 class ShiftError implements Exception {

@@ -9,6 +9,7 @@ import '../screens/login_screen.dart';
 import '../screens/no_access_screen.dart';
 import '../screens/role_screen.dart';
 import '../screens/super/super_home.dart';
+import '../screens/supervisor/supervisor_home.dart';
 import '../supabase.dart';
 import '../theme.dart';
 
@@ -95,6 +96,7 @@ class _AuthGateState extends State<AuthGate> {
         }
         if (profile.role == AppRole.superAdmin) return SuperHome(profile: profile);
         if (profile.role == AppRole.companyAdmin) return AdminHome(profile: profile);
+        if (profile.role == AppRole.supervisor) return SupervisorHome(profile: profile);
         return RoleScreen(profile: profile);
       },
     );

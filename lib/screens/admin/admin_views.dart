@@ -1,140 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import '../sites/implement_catalog.dart';
+import '../sites/site_data.dart' show kOrange, sevColor, siteStatusColor, siteStatusLabel;
+import '../sites/site_detail.dart';
+import '../sites/site_form.dart';
 import 'admin_data.dart';
 import 'admin_sheets.dart';
 import 'admin_ui.dart';
-
-/// Fila de alerta, reutilizada en el panel y en la lista de alertas.
-class FlagTile extends StatelessWidget {
-  const FlagTile({super.key, required this.d, required this.v, required this.reload});
-  final AdminData d;
-  final AVerif v;
-  final Reload reload;
-
-  @override
-  Widget build(BuildContext context) {
-    final repeat = v.guardId != null && d.repeatGuards.contains(v.guardId);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Panel(
-        onTap: () => showFlagSheet(context, d, v, reload),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Icon(
-              Icons.flag_rounded,
-              color: v.pending ? AppColors.danger : AppColors.muted,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    d.guardName(v.guardId),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${d.siteName(v.siteId)} · ${fmtWhen(v.createdAt)}',
-                    style: const TextStyle(color: AppColors.muted, fontSize: 13),
-                  ),
-                  Text(
-                    v.reason ?? 'Sin motivo',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Pill(Outcome.label(v.outcome), outcomeColor(v.outcome)),
-                if (repeat) ...[
-                  const SizedBox(height: 6),
-                  const Pill('Reincidente', AppColors.danger),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ───────────────────────── Alertas ─────────────────────────
-
-class FlagsView extends StatelessWidget {
-  const FlagsView({
-    super.key,
-    required this.d,
-    required this.filter,
-    required this.onFilter,
-    required this.reload,
-  });
-
-  final AdminData d;
-  final String filter; // pending | repeat | reviewed | all
-  final ValueChanged<String> onFilter;
-  final Reload reload;
-
-  @override
-  Widget build(BuildContext context) {
-    final repeat = d.repeatGuards;
-    final all = d.flags;
-    final list = all.where((v) {
-      switch (filter) {
-        case 'pending':
-          return v.pending;
-        case 'repeat':
-          return v.guardId != null && repeat.contains(v.guardId);
-        case 'reviewed':
-          return v.reviewed;
-        default:
-          return true;
-      }
-    }).toList();
-
-    final options = <String, String>{
-      'pending': 'Pendientes (${d.pending.length})',
-      'repeat': 'Reincidentes',
-      'reviewed': 'Revisadas',
-      'all': 'Todas (${all.length})',
-    };
-
-    return AdminPage(
-      onRefresh: reload,
-      children: [
-        const SectionHead('Alertas · últimos 7 días'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final e in options.entries)
-              ChoiceChip(
-                label: Text(e.value),
-                selected: filter == e.key,
-                onSelected: (_) => onFilter(e.key),
-              ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        if (list.isEmpty)
-          EmptyState(
-            filter == 'pending' ? Icons.verified_rounded : Icons.flag_outlined,
-            filter == 'pending'
-                ? 'Nada pendiente. Todo revisado.'
-                : 'No hay alertas con este filtro.',
-          )
-        else
-          for (final v in list) FlagTile(d: d, v: v, reload: reload),
-      ],
-    );
-  }
-}
 
 // ───────────────────────── Sitios ─────────────────────────
 
@@ -143,61 +16,115 @@ class SitesView extends StatelessWidget {
   final AdminData d;
   final Reload reload;
 
+  Future<void> _new(BuildContext context) async {
+    final cid = d.companyId;
+    if (cid == null) {
+      toast(context, 'Esta cuenta no tiene empresa asignada.');
+      return;
+    }
+    final saved = await openSiteForm(context, asAdmin: true, companyId: cid, guards: d.guards);
+    if (saved == true) await reload();
+  }
+
+  Widget _tile(BuildContext context, ASite s) {
+    final pend = d.pendingAlertsAt(s.id);
+    final worst = d.worstAt(s.id);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Panel(
+        onTap: () => openSiteDetail(context, siteId: s.id, asAdmin: true, d: d, reload: reload),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.place_rounded, color: s.approved ? AppColors.navy : siteStatusColor(s.status)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Text(
+                    s.approved
+                        ? '${d.clientName(s.clientId)} · ${d.guardsAt(s.id).length} guardas · ${s.radius} m'
+                        : (s.status == 'returned' && (s.reviewNote ?? '').isNotEmpty
+                            ? 'Devuelto: ${s.reviewNote}'
+                            : 'Propuesta del supervisor'),
+                    style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (!s.approved) Pill(siteStatusLabel(s.status), siteStatusColor(s.status)),
+                if (s.approved && !s.active) const Pill('Inactivo', AppColors.muted),
+                if (pend > 0) ...[
+                  const SizedBox(height: 4),
+                  Pill('$pend alertas', sevColor(worst)),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final toApprove = d.sites.where((s) => s.status == 'pending').toList();
+    final approved = d.sites.where((s) => s.approved).toList();
+    final others = d.sites.where((s) => s.status == 'returned' || s.status == 'draft').toList();
     return AdminPage(
       onRefresh: reload,
       children: [
         SectionHead(
-          'Sitios (${d.sites.length})',
+          'Sitios (${approved.length})',
           trailing: FilledButton.icon(
             style: smallBtn(),
-            onPressed: () {
-              final cid = d.companyId;
-              if (cid == null) {
-                toast(context, 'Esta cuenta no tiene empresa asignada.');
-                return;
-              }
-              showNewSiteDialog(context, d, cid, reload);
-            },
+            onPressed: () => _new(context),
             icon: const Icon(Icons.add_rounded),
             label: const Text('Nuevo sitio'),
           ),
         ),
-        if (d.sites.isEmpty)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              final cid = d.companyId;
+              if (cid == null) return;
+              openImplementCatalog(context, companyId: cid);
+            },
+            icon: const Icon(Icons.inventory_2_outlined),
+            label: const Text('Catálogo de implementos y nivel de alerta'),
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (toApprove.isNotEmpty) ...[
+          Text('Por aprobar (${toApprove.length})',
+              style: const TextStyle(fontWeight: FontWeight.w800, color: kOrange)),
+          const SizedBox(height: 8),
+          for (final s in toApprove) _tile(context, s),
+          const SizedBox(height: 12),
+        ],
+        if (approved.isEmpty)
           const EmptyState(
             Icons.place_outlined,
-            'Aún no hay sitios. Crea el primero para empezar a recibir verificaciones.',
+            'Aún no hay sitios aprobados. Crea uno o aprueba la propuesta de un supervisor.',
           )
         else
-          for (final s in d.sites)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Panel(
-                onTap: () => showSiteSheet(context, d, s, reload),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.place_rounded, color: AppColors.navy),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          Text(
-                            '${d.clientName(s.clientId)} · ${d.guardsAt(s.id).length} guardas · ${s.radius} m',
-                            style: const TextStyle(color: AppColors.muted, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (d.pendingAt(s.id) > 0)
-                      Pill('${d.pendingAt(s.id)} pendientes', AppColors.danger),
-                  ],
-                ),
-              ),
-            ),
+          for (final s in approved) _tile(context, s),
+        if (others.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Con el supervisor: devueltos o en borrador (${others.length})',
+              style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.muted)),
+          const SizedBox(height: 8),
+          for (final s in others) _tile(context, s),
+        ],
       ],
     );
   }

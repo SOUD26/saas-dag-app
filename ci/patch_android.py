@@ -1,4 +1,4 @@
-"""Ajusta lo generado por `flutter create` (idempotente): permiso de internet,
+"""Ajusta lo generado por `flutter create` (idempotente): permisos de internet y ubicación,
 retorno de Google (deep link), nombre visible y título web."""
 import pathlib
 import re
@@ -12,6 +12,15 @@ if "android.permission.INTERNET" not in text:
         '<uses-permission android:name="android.permission.INTERNET"/>\n    <application',
         1,
     )
+
+# Ubicación: el supervisor marca el sitio con "Usar mi ubicación" y el guarda inicia turno con GPS.
+for perm in ("ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"):
+    if f"android.permission.{perm}" not in text:
+        text = text.replace(
+            "<application",
+            f'<uses-permission android:name="android.permission.{perm}"/>\n    <application',
+            1,
+        )
 
 if "login-callback" not in text:
     intent = (

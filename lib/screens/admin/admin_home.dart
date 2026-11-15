@@ -6,7 +6,10 @@ import '../../models/profile.dart';
 import '../../supabase.dart';
 import '../../theme.dart';
 import 'admin_data.dart';
+import '../sites/site_data.dart' show kOrange, sevColor;
+import '../sites/site_detail.dart';
 import 'admin_access.dart';
+import 'alert_views.dart';
 import 'admin_sheets.dart';
 import 'admin_shifts.dart';
 import 'admin_ui.dart';
@@ -64,7 +67,7 @@ class _AdminHomeState extends State<AdminHome> {
   @override
   Widget build(BuildContext context) {
     final d = _data;
-    final pendingCount = d?.pending.length ?? 0;
+    final pendingCount = d?.pendingAlerts.length ?? 0;
 
     final dests = <(IconData, String)>[
       (Icons.dashboard_rounded, 'Panel'),
@@ -202,7 +205,7 @@ class _AdminHomeState extends State<AdminHome> {
     }
     switch (_tab) {
       case 1:
-        return FlagsView(
+        return AlertsView(
           d: d,
           filter: _flagFilter,
           onFilter: (f) => setState(() => _flagFilter = f),
@@ -244,7 +247,9 @@ class _Dashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pending = d.pending;
+    final pending = d.pendingAlerts;
+    final worst = pending.isEmpty ? null : pending.first.severity;
+    final toApprove = d.sitesToApprove;
     final repeat = d.repeatGuards;
     final activeGuards = d.guards.where((g) => g.active).length;
     final verified = d.verifiedTodayGuards.length;
@@ -252,14 +257,23 @@ class _Dashboard extends StatelessWidget {
     final docUrgent = d.docAlerts.where((a) => a.urgent).length;
     final docSoon = d.docAlerts.length - docUrgent;
 
+    final reds = pending.where((a) => a.severity == 'red').length;
     final kpis = [
       Kpi(
-        label: 'Alertas por revisar',
+        label: reds > 0 ? 'Alertas por revisar ($reds rojas)' : 'Alertas por revisar',
         value: '${pending.length}',
         icon: Icons.flag_rounded,
-        color: pending.isEmpty ? kOk : AppColors.danger,
-        onTap: () => go(1, filter: 'pending'),
+        color: pending.isEmpty ? kOk : sevColor(worst),
+        onTap: () => go(1, filter: reds > 0 ? 'red' : 'pending'),
       ),
+      if (toApprove.isNotEmpty)
+        Kpi(
+          label: 'Sitios por aprobar',
+          value: '${toApprove.length}',
+          icon: Icons.approval_rounded,
+          color: kOrange,
+          onTap: () => go(2),
+        ),
       Kpi(
         label: 'Guardas reincidentes',
         value: '${repeat.length}',
@@ -354,7 +368,7 @@ class _FlagsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pending = d.pending;
+    final pending = d.pendingAlerts;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -372,7 +386,7 @@ class _FlagsCard extends StatelessWidget {
             child: EmptyState(Icons.verified_rounded, 'Nada pendiente. Todo revisado.'),
           )
         else
-          for (final v in pending.take(5)) FlagTile(d: d, v: v, reload: reload),
+          for (final a in pending.take(5)) AlertTile(d: d, a: a, reload: reload),
       ],
     );
   }
@@ -386,7 +400,7 @@ class _MapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sites = d.sites.where((s) => s.hasCoords).toList();
+    final sites = d.sites.where((s) => s.hasCoords && s.approved).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -429,13 +443,11 @@ class _MapCard extends StatelessWidget {
                           width: 44,
                           height: 44,
                           child: GestureDetector(
-                            onTap: () => showSiteSheet(context, d, s, reload),
+                            onTap: () => openSiteDetail(context, siteId: s.id, asAdmin: true, d: d, reload: reload),
                             child: Icon(
                               Icons.location_on,
                               size: 44,
-                              color: d.pendingAt(s.id) > 0
-                                  ? AppColors.danger
-                                  : AppColors.navy,
+                              color: d.pendingAt(s.id) > 0 ? sevColor(d.worstAt(s.id)) : AppColors.navy,
                             ),
                           ),
                         ),
