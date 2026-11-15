@@ -97,10 +97,10 @@ class InsideEntry {
 }
 
 class SyncResult {
-  const SyncResult({required this.sent, required this.pending, required this.online, this.rejected = 0});
+  const SyncResult({required this.sent, required this.pending, this.online, this.rejected = 0});
   final int sent;
   final int pending;
-  final bool online;
+  final bool? online; // null: no se habló con el servidor (nada que enviar)
   final int rejected;
 }
 
@@ -231,14 +231,26 @@ class GuardStore {
   /// Envía en orden lo pendiente. Si no hay señal, se detiene y lo intenta después.
   /// Lo que el servidor rechaza (por ejemplo, el guarda ya no está asignado) se aparta y se muestra.
   Future<SyncResult> sync() async {
-    if (_syncing) return SyncResult(sent: 0, pending: outbox.length, online: true);
+    if (_syncing) return SyncResult(sent: 0, pending: outbox.length);
+    if (outbox.isEmpty) return const SyncResult(sent: 0, pending: 0);
     _syncing = true;
     var sent = 0;
     var bad = 0;
     try {
+      // Después de horas sin señal la sesión vence: se renueva antes de enviar, para que el servidor
+      // no rechace (ni se pierda) nada por eso.
+      final session = supabase.auth.currentSession;
+      if (session == null) return SyncResult(sent: 0, pending: outbox.length);
+      if (session.isExpired) {
+        try {
+          await supabase.auth.refreshSession();
+        } catch (_) {
+          return SyncResult(sent: 0, pending: outbox.length, online: false);
+        }
+      }
       while (true) {
         final q = outbox;
-        if (q.isEmpty) return SyncResult(sent: sent, pending: 0, online: true, rejected: bad);
+        if (q.isEmpty) return SyncResult(sent: sent, pending: 0, online: sent > 0 || bad > 0 ? true : null, rejected: bad);
         final op = q.first;
         try {
           results[op.id] = await _send(op);
@@ -254,7 +266,9 @@ class GuardStore {
           }
           return SyncResult(sent: sent, pending: q.length, online: false, rejected: bad);
         } on StorageException catch (e) {
-          if (const {'400', '401', '403', '413', '415'}.contains(e.statusCode)) {
+          final m = e.message.toLowerCase();
+          final authProblem = m.contains('jwt') || m.contains('token') || m.contains('expired') || e.statusCode == '401';
+          if (!authProblem && const {'400', '403', '413', '415'}.contains(e.statusCode)) {
             await _reject(q, op, 'La foto no se pudo subir: ${e.message}');
             bad++;
             continue;
@@ -280,6 +294,20 @@ class GuardStore {
     await _put('rejected', [...rejected.map((r) => r.toJson()), op.toJson()]);
     final local = op.params['local_path'];
     if (op.kind == 'photo' && local is String) await deletePhoto(local);
+    if (op.kind == 'entry') {
+      // Un ingreso rechazado no se queda en "dentro" y su foto no se sube (quedaría huérfana).
+      final site = op.params['p_site_id'];
+      if (site is String) await removeInside(site, op.id);
+      final photos = q.where((o) => o.kind == 'photo' && o.params['entry_id'] == op.id).toList();
+      if (photos.isNotEmpty) {
+        q.removeWhere((o) => o.kind == 'photo' && o.params['entry_id'] == op.id);
+        await _saveOutbox(q);
+        for (final ph in photos) {
+          final path = ph.params['local_path'];
+          if (path is String) await deletePhoto(path);
+        }
+      }
+    }
   }
 
   bool _isRejection(PostgrestException e) =>

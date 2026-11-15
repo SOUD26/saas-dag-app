@@ -92,6 +92,16 @@ class _GuardChecklistPageState extends State<GuardChecklistPage> {
     if (!mounted) return;
 
     final res = s.store.results[id];
+    final refused = s.store.rejected.where((o) => o.id == id).toList();
+    if (refused.isNotEmpty) {
+      await showDone(context,
+          title: 'No se aceptó',
+          sub: '${refused.first.error ?? ''}\nAvise a su supervisor y vuelva a intentarlo.',
+          color: gRed,
+          icon: Icons.error_rounded);
+      if (mounted) Navigator.of(context).pop(false);
+      return;
+    }
     String? sev;
     if (res is List && res.isNotEmpty) sev = (res.first as Map)['r_severity'] as String?;
     final sent = res != null;

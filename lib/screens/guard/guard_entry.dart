@@ -124,7 +124,10 @@ class _GuardEntryPageState extends State<GuardEntryPage> {
     setState(() => _busy = true);
     final s = widget.session;
     final site = s.site;
-    if (site == null) return;
+    if (site == null) {
+      setState(() => _busy = false);
+      return;
+    }
     final siteId = site['site_id'] as String;
     final id = newId();
     final now = DateTime.now();

@@ -6,6 +6,7 @@ import '../sites/site_data.dart' show kOrange, sevColor, siteStatusColor, siteSt
 import '../sites/site_detail.dart';
 import '../sites/site_form.dart';
 import '../sites/visitor_companies.dart';
+import '../sites/visit_history.dart';
 import '../sites/visitor_photos.dart';
 import 'admin_data.dart';
 import 'admin_sheets.dart';
@@ -104,6 +105,20 @@ class SitesView extends StatelessWidget {
               },
               icon: const Icon(Icons.inventory_2_outlined),
               label: const Text('Catálogo de implementos y nivel de alerta'),
+            ),
+            TextButton.icon(
+              onPressed: () {
+                final cid = d.companyId;
+                if (cid == null) return;
+                openVisitHistory(
+                  context,
+                  companyId: cid,
+                  canSeePhotos: true,
+                  sites: [for (final s in d.sites) if (s.approved) (s.id, s.name)],
+                );
+              },
+              icon: const Icon(Icons.manage_search_rounded),
+              label: const Text('Historial de visitas'),
             ),
             TextButton.icon(
               onPressed: () {

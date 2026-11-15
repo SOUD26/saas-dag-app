@@ -80,8 +80,8 @@ class _GuardLogPageState extends State<GuardLogPage> {
     if (!mounted) return;
     await showDone(
       context,
-      title: '${_cats[cat]!.$1} anotada',
-      sub: '${hhmm(now)}${cat == 'incidente' ? ' · Se avisó al supervisor.' : ''}${s.pending > 0 ? '\nSin señal: se enviará solo.' : ''}',
+      title: 'Anotado en la bitácora',
+      sub: '${_cats[cat]!.$1} · ${hhmm(now)}${cat == 'incidente' ? ' · Se avisó al supervisor.' : ''}${s.pending > 0 ? '\nSin señal: se enviará solo.' : ''}',
       color: cat == 'incidente' ? gRed : gGreen,
     );
     if (!mounted) return;

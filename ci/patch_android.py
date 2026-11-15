@@ -1,5 +1,5 @@
 """Ajusta lo generado por `flutter create` (idempotente): permisos de internet y ubicación,
-retorno de Google (deep link), nombre visible y título web."""
+retorno de Google (deep link), reglas del lector de texto, nombre visible y título web."""
 import pathlib
 import re
 
@@ -47,6 +47,20 @@ if "login-callback" not in text:
 
 text = re.sub(r'android:label="[^"]*"', 'android:label="SaaS-DAG"', text, count=1)
 manifest.write_text(text)
+
+# Lector de placas y DPI (ML Kit): solo se usa el alfabeto latino. R8 se queja de los otros
+# alfabetos que el plugin menciona pero no trae; se le dice que no los busque.
+rules = pathlib.Path("android/app/proguard-rules.pro")
+needed = [
+    "-dontwarn com.google.mlkit.vision.text.chinese.**",
+    "-dontwarn com.google.mlkit.vision.text.devanagari.**",
+    "-dontwarn com.google.mlkit.vision.text.japanese.**",
+    "-dontwarn com.google.mlkit.vision.text.korean.**",
+]
+current = rules.read_text() if rules.exists() else ""
+missing = [r for r in needed if r not in current]
+if missing:
+    rules.write_text(current + ("" if current.endswith("\n") or not current else "\n") + "\n".join(missing) + "\n")
 
 index = pathlib.Path("web/index.html")
 if index.exists():

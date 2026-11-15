@@ -17,7 +17,7 @@ Future<String?> readTextFromImage(String path) async {
   }
 }
 
-/// La foto del documento no se guarda: se borra apenas se lee.
+/// La foto de la placa no se guarda: se borra apenas se lee.
 Future<void> discardImage(String path) async {
   try {
     final f = File(path);

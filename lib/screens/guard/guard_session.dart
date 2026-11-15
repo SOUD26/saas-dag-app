@@ -153,7 +153,7 @@ class GuardSession extends ChangeNotifier {
 
   Future<SyncResult> sync() async {
     final r = await store.sync();
-    if (r.sent > 0 || r.online) online = r.online;
+    if (r.online != null) online = r.online!;
     notifyListeners();
     return r;
   }

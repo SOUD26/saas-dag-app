@@ -7,6 +7,7 @@ import '../admin/admin_ui.dart' show Panel, Pill, toast;
 import '../admin/staff_file.dart' show fmtDate;
 import 'site_data.dart';
 import 'site_form.dart';
+import 'visit_history.dart';
 import 'visitor_photos.dart';
 import '../guard/readers.dart' show fmtPlate;
 
@@ -537,7 +538,14 @@ class _SiteDetailPageState extends State<SiteDetailPage> {
         const Text('Últimos registros', style: TextStyle(color: AppColors.muted, fontSize: 13)),
         if (_entries.isEmpty) const Text('Aún no hay ingresos.', style: TextStyle(color: AppColors.muted)),
         for (final e in _entries)
-          Padding(
+          InkWell(
+            onTap: () => openVisitHistory(
+              context,
+              companyId: s.companyId,
+              query: (e['doc_number'] as String?) ?? (e['plate'] as String?) ?? (e['person_name'] as String?),
+              canSeePhotos: widget.asAdmin,
+            ),
+            child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
@@ -561,6 +569,21 @@ class _SiteDetailPageState extends State<SiteDetailPage> {
               ],
             ),
           ),
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => openVisitHistory(
+              context,
+              companyId: s.companyId,
+              siteId: s.id,
+              canSeePhotos: widget.asAdmin,
+              title: 'Historial · ${s.name}',
+            ),
+            icon: const Icon(Icons.manage_search_rounded),
+            label: const Text('Historial de visitas de este sitio'),
+          ),
+        ),
         if (widget.asAdmin && s.companyId != null)
           Align(
             alignment: Alignment.centerLeft,

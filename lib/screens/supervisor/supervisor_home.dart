@@ -7,6 +7,7 @@ import '../admin/admin_ui.dart' show EmptyState, Panel, Pill;
 import '../sites/site_data.dart';
 import '../sites/site_detail.dart';
 import '../sites/site_form.dart';
+import '../sites/visit_history.dart';
 
 /// Supervisión y monitoreo (v1): sus sitios y las propuestas de sitios nuevos.
 class SupervisorHome extends StatefulWidget {
@@ -31,7 +32,7 @@ class _SupervisorHomeState extends State<SupervisorHome> {
     try {
       final rows = await supabase
           .from('sites')
-          .select('id, name, status, active, review_note, address, radius_m')
+          .select('id, name, status, active, review_note, address, radius_m, visitor_control')
           .order('name');
       if (!mounted) return;
       setState(() {
@@ -143,6 +144,30 @@ class _SupervisorHomeState extends State<SupervisorHome> {
                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                         const SizedBox(height: 8),
                         for (final s in proposals) _tile(s),
+                        const SizedBox(height: 16),
+                      ],
+                      if (mine.any((s) => s['visitor_control'] == true)) ...[
+                        Panel(
+                          onTap: () => openVisitHistory(
+                            context,
+                            sites: [
+                              for (final s in mine)
+                                if (s['visitor_control'] == true) (s['id'] as String, (s['name'] as String?) ?? 'Sitio'),
+                            ],
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.manage_search_rounded, color: AppColors.navy),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text('Historial de visitas: buscar por placa, DPI, nombre o empresa',
+                                    style: TextStyle(fontWeight: FontWeight.w700)),
+                              ),
+                              Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 16),
                       ],
                       Text('Mis sitios (${mine.length})',

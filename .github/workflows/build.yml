@@ -18,6 +18,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # bash con pipefail: si "flutter build ... | tee" falla, el paso falla ahí mismo (no más adelante).
+    defaults:
+      run:
+        shell: bash
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: 5e33058b1d25ea0f1d50f2875293f813
