@@ -42,8 +42,9 @@ SaaS para empresas de seguridad (Guatemala): monitorear guardias y sitios, y ofr
 ## Estado y pendientes
 - Módulo 1 (autenticación y roles): terminado y probado. Cara = módulo aparte.
 - Módulo 2 (sitios y personal): hecho y compilando, falta que Isaac lo pruebe en pantalla: pestaña Personal (crear usuario, cuenta activa, funciones extra, cambiar contraseña), Turnos con bitácora del guarda, selector de empresa para el súper admin.
-- Fichas (2026-11-14): base de datos lista y probada (empresa + suscripción, cliente, ficha de personal, documentos con vencimiento, buckets privados `avatars`/`logos`/`documents`, bitácora de fichas y de turnos). Pruebas en `supabase/tests/modulo2_fichas_permisos.sql`. Faltan las pantallas.
-- Siguiente: formularios de ficha en la app (Nuevo usuario + ficha, empresa, cliente, documentos); pantalla del supervisor; asignar guardas a sitios; ubicación del sitio en el mapa; emparejar teléfono↔sitio (QR); entrada única con cara configurable por empresa; reconocimiento facial.
+- Fichas (2026-11-14): base de datos lista y probada (empresa + suscripción, cliente, ficha de personal, documentos con vencimiento, buckets privados `avatars`/`logos`/`documents`, bitácora de fichas y de turnos). Pruebas en `supabase/tests/modulo2_fichas_permisos.sql`.
+- Formulario de alta y ficha (`lib/screens/admin/staff_form.dart`, datos en `staff_file.dart`): cuenta + foto + ficha + documentos; interruptores porta arma / conduce moto / conduce vehículo vuelven obligatoria la licencia; guardado con `staff_precheck` → cuenta → `save_staff_file` → foto. Tarjeta y lista de documentos en el Panel. Falta: subir escaneos, fichas de empresa y cliente en pantalla.
+- Siguiente: pantalla del supervisor (el guarda debe ver foto y nombre de su supervisor en su pantalla); fichas de empresa y cliente; asignar guardas a sitios; ubicación del sitio en el mapa; emparejar teléfono↔sitio (QR); entrada única con cara configurable por empresa; reconocimiento facial.
 - Después: rondas con QR, alertas y pánico, portal del cliente.
 - Antes del lanzamiento: decidir repo público/privado, llave de firma propia del APK, proveedor de mapas, plan Pro de Supabase, borrar datos demo.
 

@@ -1,6 +1,4 @@
 // Formulario de persona: alta (cuenta + ficha + documentos + foto) y edición de la ficha.
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
